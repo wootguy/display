@@ -2,20 +2,21 @@ from PIL import Image
 from os import system
 
 bitsPerPixel = 8
+tint = (1,1,1)
 
 w = 0
 h = 0
 
-if bitsPerPixel == 24:
+if bitsPerPixel == 32:
 	w = 2
-	h = 1
-if bitsPerPixel == 8:
+	h = 2
+if bitsPerPixel == 8: # actually 3 bit
 	w = 3
 	h = 2
-if bitsPerPixel == 4:
+if bitsPerPixel == 4: # actually 2 bit
 	w = 3
 	h = 3
-if bitsPerPixel == 2:
+if bitsPerPixel == 2: # actually 1 bit
 	w = 6
 	h = 3
 	
@@ -26,7 +27,7 @@ masterH = (h+pad)*16 + pad
 
 print("Master tex size: %sx%s" % (masterW, masterH))
 
-masterScale = 4
+masterScale = 1
 
 
 combos = bitsPerPixel**(w*h)
@@ -38,7 +39,7 @@ print("possible combos %s" % combos)
 
 args = ''
 
-img = Image.new('L', (masterW, masterH))
+img = Image.new('RGB', (masterW, masterH))
 pixels = img.load()
 
 smd_header = '''version 1
@@ -68,7 +69,6 @@ $bodygroup "body"
 {
 '''
 
-
 masterX = 0
 masterY = 0
 masterIdx = 0
@@ -87,8 +87,12 @@ for combo in range(1, combos+1):
 			print("Master idx %s filled at %s" % (masterIdx, combo))
 			masterX = masterY = 0
 			img = img.resize((masterW*masterScale, masterH*masterScale))
+			for y in range(masterH):
+				for x in range(masterW):
+					pixels[x,y] = (pixels[x,y][0]*tint[0], pixels[x,y][1]*tint[1], pixels[x,y][2]*tint[2])
+			img = img.quantize()
 			img.save("%s.bmp" % masterIdx)
-			img = Image.new('L', (masterW, masterH))
+			img = Image.new('RGB', (masterW, masterH))
 			pixels = img.load()
 			masterIdx += 1
 			if isLast or masterIdx % maxSkinsPerMdl == 0:
@@ -129,23 +133,26 @@ for combo in range(1, combos+1):
 				px = offsetX + x
 				py = offsetY + y
 				if combo & (1 << b) != 0:
-					pixels[px,py] = min(pixels[px,py] + inc*(1 << level), 255)
-					
+					mr = int( min(pixels[px,py][0] + inc*(1 << level), 255) )
+					mg = int( min(pixels[px,py][1] + inc*(1 << level), 255) )
+					mb = int( min(pixels[px,py][2] + inc*(1 << level), 255) )
+					pixels[px,py] = (mr,mg,mb)
+
 					if pad > 0 and bitsPerPixel == 2:
 						# draw pixels on borders to prevent bilinear filtering to an adjacent pixel outside of the chunk
-						if x == 0: pixels[px-1,py] = 255
-						if y == 0: pixels[px,py-1] = 255
-						if x == w-1: pixels[px+1,py] = 255
-						if y == h-1: pixels[px,py+1] = 255
+						if x == 0: pixels[px-1,py] = (255,255,255)
+						if y == 0: pixels[px,py-1] = (255,255,255)
+						if x == w-1: pixels[px+1,py] = (255,255,255)
+						if y == h-1: pixels[px,py+1] = (255,255,255)
 						
 						# top left corner
-						if x == 0 and y == 0: pixels[px-1,py-1] = 255
+						if x == 0 and y == 0: pixels[px-1,py-1] = (255,255,255)
 						# top right corner
-						if x == w-1 and y == 0: pixels[px+1,py-1] = 255
+						if x == w-1 and y == 0: pixels[px+1,py-1] = (255,255,255)
 						# bottom left corner
-						if x == 0 and y == h-1: pixels[px-1,py+1] = 255
+						if x == 0 and y == h-1: pixels[px-1,py+1] = (255,255,255)
 						# bottom right corner
-						if x == w-1 and y == h-1: pixels[px+1,py+1] = 255
+						if x == w-1 and y == h-1: pixels[px+1,py+1] = (255,255,255)
 	
 	if smdWrite < 256:
 		smdWrite += 1
