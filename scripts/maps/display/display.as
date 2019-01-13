@@ -32,6 +32,7 @@ string display_path = "models/display/2bit/";
 */
 
 // 3bit 3x2
+/*
 int numChunkModels = 11;
 int chunkSize = 6;
 int chunkWidth = 3;
@@ -41,8 +42,33 @@ int skinsPerModel = 100;
 int numPixelCombinations = int( pow(8, chunkSize) );
 //string chunk_fname = "chunks_8bit.dat";
 string display_path = "models/display/3bit/";
+*/
 
-string chunk_fname = "chunks_3bit_rgb.dat";
+// 6bit 3x1
+/*
+int numChunkModels = 11;
+int chunkSize = 3;
+int chunkWidth = 3;
+int chunkHeight = 1;
+uint numSkinsLastModel = 24;
+int skinsPerModel = 100;
+int numPixelCombinations = int( pow(64, 3) );
+//string chunk_fname = "chunks_8bit.dat";
+string display_path = "models/display/6bit/";
+*/
+
+// 8bit 2x1
+int numChunkModels = 3;
+int chunkSize = 2;
+int chunkWidth = 2;
+int chunkHeight = 1;
+uint numSkinsLastModel = 56;
+int skinsPerModel = 100;
+int numPixelCombinations = int( pow(256, 2) );
+//string chunk_fname = "chunks_8bit.dat";
+string display_path = "models/display/8bit/";
+
+string chunk_fname = "chunks_8bit_rgb.dat";
 bool g_rgb_mode = true;
 
 
@@ -299,7 +325,9 @@ void createDisplay(Vector pos, Vector angles)
 	//Display disp = Display(pos, angles, 87, 51, 1.5, g_rgb_mode); // 2bit
 	//Display disp = Display(pos, angles, 51, 30, 2.5, g_rgb_mode); // 2bit RGB
 	//Display disp = Display(pos, angles, 72, 42, 2, g_rgb_mode); // 4bit
-	Display disp = Display(pos, angles, 42, 24, 2.5, g_rgb_mode); // 4bit RGB
+	//Display disp = Display(pos, angles, 42, 24, 2.5, g_rgb_mode); // 4bit RGB
+	//Display disp = Display(pos, angles, 30, 16, 2.5, g_rgb_mode); // 6bit RGB
+	Display disp = Display(pos, angles, 24, 14, 3, g_rgb_mode); // 8bit RGB
 }
 
 bool doDoomCommand(CBasePlayer@ plr, const CCommand@ args)
