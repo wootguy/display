@@ -31,7 +31,7 @@ int numPixelCombinations = int( pow(4, chunkSize) );
 string display_path = "models/display/2bit/";
 */
 
-// 4bit 3x2
+// 3bit 3x2
 int numChunkModels = 11;
 int chunkSize = 6;
 int chunkWidth = 3;
@@ -40,9 +40,9 @@ uint numSkinsLastModel = 24;
 int skinsPerModel = 100;
 int numPixelCombinations = int( pow(8, chunkSize) );
 //string chunk_fname = "chunks_8bit.dat";
-string display_path = "models/display/4bit/";
+string display_path = "models/display/3bit/";
 
-string chunk_fname = "chunks_4bit_rgb.dat";
+string chunk_fname = "chunks_3bit_rgb.dat";
 bool g_rgb_mode = true;
 
 
