@@ -5,71 +5,97 @@
 // GL_MAXTEXTURES at 4096 textures (~40 models)
 // 1x19 can't work with 4x pixel size because of 1024 tex size limit
 
+class DisplayConfig
+{
+	ChunkModelConfig chunk;
+	int width;
+	int height;
+	int bits;
+	bool rgb;
+	
+	string input_fname;
+	
+	DisplayConfig() {}
+	
+	DisplayConfig(ChunkModelConfig chunkConfig, int width, int height, bool rgb) {
+		this.width = width;
+		this.height = height;
+		this.bits = chunkConfig.bits;
+		this.rgb = rgb;
+		
+		this.chunk = chunkConfig;
+
+		input_fname = "chunks_" + bits + "bit";
+		if (rgb)
+			input_fname += "_rgb";
+		input_fname += ".dat";		
+	}
+}
+
+class ChunkModelConfig
+{
+	int chunkWidth;
+	int chunkHeight;
+	int numChunkModels;
+	int skinsPerModel;
+	uint numSkinsLastModel;
+	
+	int chunkSize;
+	int numPixelCombinations;
+	int bits; // bits per pixel
+	
+	string chunk_path;
+	
+	ChunkModelConfig() {}
+	
+	ChunkModelConfig(int chunkWidth, int chunkHeight, int bits, int numChunkModels, int skinsPerModel, uint numSkinsLastModel) {
+		this.chunkWidth = chunkWidth;
+		this.chunkHeight = chunkHeight;
+		this.numChunkModels = numChunkModels;
+		this.numSkinsLastModel = numSkinsLastModel;
+		this.skinsPerModel = skinsPerModel;
+		this.bits = bits;
+		
+		chunkSize = chunkWidth * chunkHeight;
+		numPixelCombinations = int( pow(pow(2,bits), chunkSize) );
+		
+		chunk_path = "models/display/" + bits + "bit/";
+	}
+}
+
 // 1bit 6x3
-/*
-int numChunkModels = 11;
-int chunkSize = 18;
-int chunkWidth = 6;
-int chunkHeight = 3;
-uint numSkinsLastModel = 64;
-int skinsPerModel = 96;
-int numPixelCombinations = int( pow(2, chunkSize) );
-//string chunk_fname = "chunks_1bit.dat";
-string display_path = "models/display/1bit/";
-*/
+ChunkModelConfig chunk_cfg_1bit = ChunkModelConfig(6, 3, 1, 11, 100, 24);
+DisplayConfig display_cfg_1bit_grey = DisplayConfig(chunk_cfg_1bit, 126, 72, false);
+DisplayConfig display_cfg_1bit_rgb  = DisplayConfig(chunk_cfg_1bit, 72, 42, true);
 
 // 2bit 3x3
-/*
-int numChunkModels = 11;
-int chunkSize = 9;
-int chunkWidth = 3;
-int chunkHeight = 3;
-uint numSkinsLastModel = 24;
-int skinsPerModel = 100;
-int numPixelCombinations = int( pow(4, chunkSize) );
-//string chunk_fname = "chunks_2bit.dat";
-string display_path = "models/display/2bit/";
-*/
+ChunkModelConfig chunk_cfg_2bit = ChunkModelConfig(3, 3, 2, 11, 100, 24);
+DisplayConfig display_cfg_2bit_grey = DisplayConfig(chunk_cfg_2bit, 87, 51, false);
+DisplayConfig display_cfg_2bit_rgb  = DisplayConfig(chunk_cfg_2bit, 51, 30, true);
 
 // 3bit 3x2
-/*
-int numChunkModels = 11;
-int chunkSize = 6;
-int chunkWidth = 3;
-int chunkHeight = 2;
-uint numSkinsLastModel = 24;
-int skinsPerModel = 100;
-int numPixelCombinations = int( pow(8, chunkSize) );
-//string chunk_fname = "chunks_8bit.dat";
-string display_path = "models/display/3bit/";
-*/
+ChunkModelConfig chunk_cfg_3bit = ChunkModelConfig(3, 2, 3, 11, 100, 24);
+DisplayConfig display_cfg_3bit_grey = DisplayConfig(chunk_cfg_3bit, 72, 42, false);
+DisplayConfig display_cfg_3bit_rgb  = DisplayConfig(chunk_cfg_3bit, 42, 24, true);
 
 // 6bit 3x1
-/*
-int numChunkModels = 11;
-int chunkSize = 3;
-int chunkWidth = 3;
-int chunkHeight = 1;
-uint numSkinsLastModel = 24;
-int skinsPerModel = 100;
-int numPixelCombinations = int( pow(64, 3) );
-//string chunk_fname = "chunks_8bit.dat";
-string display_path = "models/display/6bit/";
-*/
+ChunkModelConfig chunk_cfg_6bit = ChunkModelConfig(3, 1, 6, 11, 100, 24);
+DisplayConfig display_cfg_6bit_grey = DisplayConfig(chunk_cfg_6bit, 51, 30, false);
+DisplayConfig display_cfg_6bit_rgb  = DisplayConfig(chunk_cfg_6bit, 30, 16, true);
 
 // 8bit 2x1
-int numChunkModels = 3;
-int chunkSize = 2;
-int chunkWidth = 2;
-int chunkHeight = 1;
-uint numSkinsLastModel = 56;
-int skinsPerModel = 100;
-int numPixelCombinations = int( pow(256, 2) );
-//string chunk_fname = "chunks_8bit.dat";
-string display_path = "models/display/8bit/";
+ChunkModelConfig chunk_cfg_8bit = ChunkModelConfig(2, 1, 8, 3, 100, 56);
+DisplayConfig display_cfg_8bit_grey = DisplayConfig(chunk_cfg_8bit, 42, 24, false);
+DisplayConfig display_cfg_8bit_rgb  = DisplayConfig(chunk_cfg_8bit, 24, 14, true);
 
-string chunk_fname = "chunks_8bit_rgb.dat";
-bool g_rgb_mode = true;
+
+//
+// ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
+//
+DisplayConfig display_cfg = display_cfg_3bit_grey;
+//
+// ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
+//
 
 
 // 1x19
@@ -101,8 +127,8 @@ void init()
 	uint body = 0;
 	uint skin = 0;
 	uint model = 0;
-	g_num_to_chunk.resize(numPixelCombinations);
-	for (int i = 0; i < numPixelCombinations; i++)
+	g_num_to_chunk.resize(display_cfg.chunk.numPixelCombinations);
+	for (int i = 0; i < display_cfg.chunk.numPixelCombinations; i++)
 	{
 		g_num_to_chunk[i] = (model << 16) + (skin << 8) + body;
 		body += 1;
@@ -110,11 +136,11 @@ void init()
 		{
 			body = 0;
 			skin += 1;
-			if (int(skin) >= skinsPerModel or (int(model) == numChunkModels-1 and skin >= numSkinsLastModel))
+			if (int(skin) >= display_cfg.chunk.skinsPerModel or (int(model) == display_cfg.chunk.numChunkModels-1 and skin >= display_cfg.chunk.numSkinsLastModel))
 			{
 				skin = 0;
 				model += 1;
-				if (int(model) >= numChunkModels)
+				if (int(model) >= display_cfg.chunk.numChunkModels)
 					model = 0;
 			}
 		}
@@ -141,12 +167,12 @@ class Display
 	
 	Display(Vector pos, Vector angles, uint width, uint height, float scale, bool rgb_mode)
 	{
-		if (width % chunkWidth != 0 or height % chunkHeight != 0)
-			println("Display size rounded to nearest multiple of " + chunkWidth + "x" + chunkHeight);
-		this.width = width - (width % chunkWidth);
-		this.height = height - (height % chunkHeight);
-		this.chunkW = this.width / chunkWidth;
-		this.chunkH = this.height / chunkHeight;
+		if (width % display_cfg.chunk.chunkWidth != 0 or height % display_cfg.chunk.chunkHeight != 0)
+			println("Display size rounded to nearest multiple of " + display_cfg.chunk.chunkWidth + "x" + display_cfg.chunk.chunkHeight);
+		this.width = width - (width % display_cfg.chunk.chunkWidth);
+		this.height = height - (height % display_cfg.chunk.chunkHeight);
+		this.chunkW = this.width / display_cfg.chunk.chunkWidth;
+		this.chunkH = this.height / display_cfg.chunk.chunkHeight;
 		this.scale = scale;
 		this.rgb_mode = rgb_mode;
 		this.chans = rgb_mode ? 3 : 1;
@@ -166,15 +192,13 @@ class Display
 		up = g_Engine.v_up;
 		right = g_Engine.v_right;
 		
-		this.pos = pos + up*(chunkH/2)*chunkHeight*scale + -right*(chunkW/2)*chunkWidth*scale;
+		this.pos = pos + up*(chunkH/2)*display_cfg.chunk.chunkHeight*scale + -right*(chunkW/2)*display_cfg.chunk.chunkWidth*scale;
 		this.angles = angles;
-		
-		createChunks();
 	}
 	
 	void createChunks()
 	{
-		int channels = g_rgb_mode ? 3 : 1;
+		int channels = display_cfg.rgb ? 3 : 1;
 		
 		
 		for (int c = 0; c < channels; c++)
@@ -182,7 +206,7 @@ class Display
 			string color_dir = rgb_mode ? rgb_dirs[c] : "grey/";
 			
 			dictionary ckeys;
-			ckeys["model"] = display_path + color_dir + "0.mdl";
+			ckeys["model"] = display_cfg.chunk.chunk_path + color_dir + "0.mdl";
 			ckeys["movetype"] = "5";
 			ckeys["scale"] = "" + scale;
 			ckeys["targetname"] = "display_sprite";
@@ -194,7 +218,7 @@ class Display
 			{
 				for (int y = 0; y < chunkH; y++)
 				{
-					Vector chunkPos = pos + right*x*chunkWidth*scale + -up*y*chunkHeight*scale;
+					Vector chunkPos = pos + right*x*display_cfg.chunk.chunkWidth*scale + -up*y*display_cfg.chunk.chunkHeight*scale;
 					ckeys["origin"] = chunkPos.ToString();
 					CBaseEntity@ spr = g_EntityFuncs.CreateEntity("item_generic", ckeys, true);
 					spr.pev.solid = SOLID_NOT;
@@ -212,7 +236,7 @@ class Display
 	{
 		if (f is null) {
 			println("LOAD AGAIN");
-			string fpath = "scripts/maps/display/" + chunk_fname;
+			string fpath = "scripts/maps/display/" + display_cfg.input_fname;
 			@f = g_FileSystem.OpenFile( fpath, OpenFile::READ );
 			if( f is null or !f.IsOpen())
 			{
@@ -252,7 +276,7 @@ class Display
 						uint skinIdx = (c >> 8) & 0xff;
 						uint bodyIdx = c & 0xff;
 						
-						g_EntityFuncs.SetModel(ent, display_path + color_dir + modelIdx + ".mdl");
+						g_EntityFuncs.SetModel(ent, display_cfg.chunk.chunk_path + color_dir + modelIdx + ".mdl");
 						ent.pev.skin = skinIdx;
 						ent.pev.body = bodyIdx;
 					}
@@ -274,9 +298,9 @@ class Display
 			for (int y = 0; y < chunkH; y++)
 			{
 				CBaseEntity@ ent = chunks[0][x][y];
-				uint c = g_num_to_chunk[Math.RandomLong(0, numPixelCombinations-1)];
+				uint c = g_num_to_chunk[Math.RandomLong(0, display_cfg.chunk.numPixelCombinations-1)];
 				
-				g_EntityFuncs.SetModel(ent, display_path + (c >> 16) + ".mdl");
+				g_EntityFuncs.SetModel(ent, display_cfg.chunk.chunk_path + (c >> 16) + ".mdl");
 				ent.pev.skin = (c >> 8) & 0xff;
 				ent.pev.body = c & 0xff;
 			}
@@ -289,16 +313,16 @@ void MapInit()
 {
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
 	
-	for (int i = 0; i < numChunkModels; i++)
+	for (int i = 0; i < display_cfg.chunk.numChunkModels; i++)
 	{
-		if (g_rgb_mode)
+		if (display_cfg.rgb)
 		{
-			g_Game.PrecacheModel(display_path + "red/" + i + ".mdl");
-			g_Game.PrecacheModel(display_path + "green/" + i + ".mdl");
-			g_Game.PrecacheModel(display_path + "blue/" + i + ".mdl");
+			g_Game.PrecacheModel(display_cfg.chunk.chunk_path + "red/" + i + ".mdl");
+			g_Game.PrecacheModel(display_cfg.chunk.chunk_path + "green/" + i + ".mdl");
+			g_Game.PrecacheModel(display_cfg.chunk.chunk_path + "blue/" + i + ".mdl");
 		}
 		else
-			g_Game.PrecacheModel(display_path + i + ".mdl");
+			g_Game.PrecacheModel(display_cfg.chunk.chunk_path + "grey/" + i + ".mdl");
 	}
 }
 
@@ -320,14 +344,8 @@ TraceResult TraceLook(CBasePlayer@ plr, float dist=128)
 
 void createDisplay(Vector pos, Vector angles)
 {
-	//Display disp = Display(pos, angles, 126, 72, 1, g_rgb_mode); // 1bit
-	//Display disp = Display(pos, angles, 72, 42, 1, g_rgb_mode); // 1bit RGB
-	//Display disp = Display(pos, angles, 87, 51, 1.5, g_rgb_mode); // 2bit
-	//Display disp = Display(pos, angles, 51, 30, 2.5, g_rgb_mode); // 2bit RGB
-	//Display disp = Display(pos, angles, 72, 42, 2, g_rgb_mode); // 4bit
-	//Display disp = Display(pos, angles, 42, 24, 2.5, g_rgb_mode); // 4bit RGB
-	//Display disp = Display(pos, angles, 30, 16, 2.5, g_rgb_mode); // 6bit RGB
-	Display disp = Display(pos, angles, 24, 14, 3, g_rgb_mode); // 8bit RGB
+	Display disp = Display(pos, angles, display_cfg.width, display_cfg.height, 2, display_cfg.rgb);	
+	disp.createChunks();
 }
 
 bool doDoomCommand(CBasePlayer@ plr, const CCommand@ args)

@@ -10,12 +10,13 @@ for file in os.listdir('.'):
 
 names = sorted(names, key=int)
 
-greyscale = False
+# choose settings here!!
+bits = 8
+greyscale = True
+# choose settings here!!
 
 chunkSizeX = 6
 chunkSizeY = 3
-
-bits = 8
 
 if bits == 1:
 	chunkSizeX = 6
@@ -33,79 +34,109 @@ if bits == 8:
 	chunkSizeX = 2
 	chunkSizeY = 1
 
-# Generate a rgb palette with 3 bits per color (8 possible shades)
-if bits == 6:
-	pgen = Image.new('RGB', (512, 512), color = 'black')
-	pix = pgen.load()
-	r = 0
-	g = 0
-	b = 0
-	cstep = 4.05
-	for y in range(512):
-		for x in range(512):
-			pix[x,y] = (int(r),int(g),int(b))
-			r += cstep
-			if r > 256:
+# Generate palette to remap the images to
+cstep = 255 / (pow(2,bits) - 1)
+if greyscale:
+	if bits == 2:
+		pgen = Image.new('RGB', (2, 2), color = 'black')
+		pix = pgen.load()
+		g = 0
+		for y in range(2):
+			for x in range(2):
+				pix[x,y] = (int(g),int(g),int(g))
 				g += cstep
-				r = 0
-				if g > 256:
-					b += cstep
-					g = 0
-	pgen.save("pal_gen6.bmp")
-if bits == 3:
-	pgen = Image.new('RGB', (32, 16), color = 'black')
-	pix = pgen.load()
-	r = 0
-	g = 0
-	b = 0
-	cstep = 36.43
-	for y in range(16):
-		for x in range(32):
-			pix[x,y] = (int(r),int(g),int(b))
-			r += cstep
-			if r > 256:
+		pgen.save("pal_grey2.bmp")
+	if bits == 3:
+		pgen = Image.new('RGB', (4, 2), color = 'black')
+		pix = pgen.load()
+		g = 0
+		for y in range(2):
+			for x in range(4):
+				pix[x,y] = (int(g),int(g),int(g))
 				g += cstep
-				r = 0
-				if g > 256:
-					b += cstep
-					g = 0
-	pgen.save("pal_gen3.bmp")
-if bits == 2:
-	pgen = Image.new('RGB', (8, 8), color = 'black')
-	pix = pgen.load()
-	r = 0
-	g = 0
-	b = 0
-	cstep = 85
-	for y in range(8):
-		for x in range(8):
-			pix[x,y] = (int(r),int(g),int(b))
-			r += cstep
-			if r > 256:
+		pgen.save("pal_grey3.bmp")
+	if bits == 6:
+		pgen = Image.new('RGB', (16, 16), color = 'black')
+		pix = pgen.load()
+		g = 0
+		for y in range(16):
+			for x in range(16):
+				pix[x,y] = (int(g),int(g),int(g))
 				g += cstep
-				r = 0
-				if g > 256:
-					b += cstep
-					g = 0
-	pgen.save("pal_gen2.bmp")
-if bits == 1:
-	pgen = Image.new('RGB', (4, 2), color = 'black')
-	pix = pgen.load()
-	r = 0
-	g = 0
-	b = 0
-	cstep = 255
-	for y in range(2):
-		for x in range(4):
-			pix[x,y] = (int(r),int(g),int(b))
-			r += cstep
-			if r > 256:
-				g += cstep
-				r = 0
-				if g > 256:
-					b += cstep
-					g = 0
-	pgen.save("pal_gen1.bmp")
+		pgen.save("pal_grey8.bmp")
+else:
+	if bits == 6:
+		pgen = Image.new('RGB', (512, 512), color = 'black')
+		pix = pgen.load()
+		r = 0
+		g = 0
+		b = 0
+		cstep = 4.05
+		for y in range(512):
+			for x in range(512):
+				pix[x,y] = (int(r),int(g),int(b))
+				r += cstep
+				if r > 256:
+					g += cstep
+					r = 0
+					if g > 256:
+						b += cstep
+						g = 0
+		pgen.save("pal_gen6.bmp")
+	if bits == 3:
+		pgen = Image.new('RGB', (32, 16), color = 'black')
+		pix = pgen.load()
+		r = 0
+		g = 0
+		b = 0
+		cstep = 36.43
+		for y in range(16):
+			for x in range(32):
+				pix[x,y] = (int(r),int(g),int(b))
+				r += cstep
+				if r > 256:
+					g += cstep
+					r = 0
+					if g > 256:
+						b += cstep
+						g = 0
+		pgen.save("pal_gen3.bmp")
+	if bits == 2:
+		pgen = Image.new('RGB', (8, 8), color = 'black')
+		pix = pgen.load()
+		r = 0
+		g = 0
+		b = 0
+		cstep = 85
+		for y in range(8):
+			for x in range(8):
+				pix[x,y] = (int(r),int(g),int(b))
+				r += cstep
+				if r > 256:
+					g += cstep
+					r = 0
+					if g > 256:
+						b += cstep
+						g = 0
+		pgen.save("pal_gen2.bmp")
+	if bits == 1:
+		pgen = Image.new('RGB', (4, 2), color = 'black')
+		pix = pgen.load()
+		r = 0
+		g = 0
+		b = 0
+		cstep = 255
+		for y in range(2):
+			for x in range(4):
+				pix[x,y] = (int(r),int(g),int(b))
+				r += cstep
+				if r > 256:
+					g += cstep
+					r = 0
+					if g > 256:
+						b += cstep
+						g = 0
+		pgen.save("pal_gen1.bmp")
 
 cw = 0
 ch = 0
@@ -125,9 +156,12 @@ for name in names:
 		elif bits == 2:
 			system("magick convert -colorspace gray -resize 87x51! -colors 5 -contrast-stretch 0  " + fname + " " + tempFname)
 		elif bits == 3:
-			system("magick convert %s -resize 72x42! -colorspace gray -contrast-stretch 0 -remap pal.bmp %s" % (fname, tempFname))
+			system("magick convert %s -resize 72x42! -colorspace gray -contrast-stretch 0 -remap pal_grey3.bmp %s" % (fname, tempFname))
+		elif bits == 6:
+			system("magick convert %s -resize 51x30! -colorspace gray -contrast-stretch 0 -remap pal_grey6.bmp %s" % (fname, tempFname))
+		elif bits == 8:
+			system("magick convert %s -resize 42x24! -colorspace gray %s" % (fname, tempFname))
 	else:
-	    # 24x14
 		if bits == 8:
 			system("magick convert %s -resize 24x14! %s" % (fname, tempFname))
 		if bits == 6:
