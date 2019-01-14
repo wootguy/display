@@ -211,6 +211,8 @@ def convert_frames(bits=3, greyscale=True, workerid=0):
 				system("magick convert -colorspace gray -resize 87x51! -contrast-stretch 0 -remap ../pal/pal_grey2.bmp " + fname + " " + tempFname)
 			elif bits == 3:
 				system("magick convert %s -resize 72x42! -colorspace gray -contrast-stretch 0 -remap ../pal/pal_grey3.bmp %s" % (fname, tempFname))
+			elif bits == 4:
+				system("magick convert %s -resize 58x32! -colorspace gray -contrast-stretch 0 -remap ../pal/pal_grey4.bmp %s" % (fname, tempFname))
 			elif bits == 6:
 				system("magick convert %s -resize 51x30! -colorspace gray -contrast-stretch 0 -remap ../pal/pal_grey6.bmp %s" % (fname, tempFname))
 			elif bits == 8:
