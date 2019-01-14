@@ -12,7 +12,7 @@ names = sorted(names, key=int)
 
 # choose settings here!!
 bits = 4
-greyscale = False
+greyscale = True
 # choose settings here!!
 
 chunkSizeX = 6
@@ -55,6 +55,15 @@ if greyscale:
 				pix[x,y] = (int(g),int(g),int(g))
 				g += cstep
 		pgen.save("pal_grey3.bmp")
+	if bits == 4:
+		pgen = Image.new('RGB', (4, 4), color = 'black')
+		pix = pgen.load()
+		g = 0
+		for y in range(4):
+			for x in range(4):
+				pix[x,y] = (int(g),int(g),int(g))
+				g += cstep
+		pgen.save("pal_grey4.bmp")
 	if bits == 6:
 		pgen = Image.new('RGB', (16, 16), color = 'black')
 		pix = pgen.load()

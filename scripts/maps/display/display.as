@@ -80,9 +80,8 @@ DisplayConfig display_cfg_3bit_rgb  = DisplayConfig(chunk_cfg_3bit, 42, 24, true
 
 // 4bit 2x2 (ineffecient)
 ChunkModelConfig chunk_cfg_4bit = ChunkModelConfig(2, 2, 4, 3, 100, 56);
-//DisplayConfig display_cfg_4bit_grey = DisplayConfig(chunk_cfg_4bit, 72, 42, false);
+DisplayConfig display_cfg_4bit_grey = DisplayConfig(chunk_cfg_4bit, 58, 32, false);
 DisplayConfig display_cfg_4bit_rgb  = DisplayConfig(chunk_cfg_4bit, 34, 20, true);
-// 34x20
 
 // 6bit 3x1
 ChunkModelConfig chunk_cfg_6bit = ChunkModelConfig(3, 1, 6, 11, 100, 24);
@@ -98,7 +97,7 @@ DisplayConfig display_cfg_8bit_rgb  = DisplayConfig(chunk_cfg_8bit, 24, 14, true
 //
 // ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
 //
-DisplayConfig display_cfg = display_cfg_4bit_rgb;
+DisplayConfig display_cfg = display_cfg_4bit_grey;
 //
 // ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
 //
@@ -445,8 +444,8 @@ bool doDoomCommand(CBasePlayer@ plr, const CCommand@ args)
 			// https://github.com/nficano/pytube/pull/313#issuecomment-438175656
 			clearCommInput();
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=zPiAK_RP8dU');
-			g_disp.loadNewVideo('https://www.youtube.com/watch?v=9wnNW4HyDtg');
-			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=3Fu8ZxBmcnU');		// human bean stutter kid
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=9wnNW4HyDtg');	// ayayaya
+			g_disp.loadNewVideo('https://www.youtube.com/watch?v=3Fu8ZxBmcnU');		// human bean stutter kid
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=ni9FCzIOX2w');   // human bean flex guy
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=uYmaRNpd-WQ');	// human bean dedotated wam
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=6cAyrdoVpZc');
