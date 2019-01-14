@@ -78,12 +78,18 @@ ChunkModelConfig chunk_cfg_3bit = ChunkModelConfig(3, 2, 3, 11, 100, 24);
 DisplayConfig display_cfg_3bit_grey = DisplayConfig(chunk_cfg_3bit, 72, 42, false);
 DisplayConfig display_cfg_3bit_rgb  = DisplayConfig(chunk_cfg_3bit, 42, 24, true);
 
+// 4bit 2x2 (ineffecient)
+ChunkModelConfig chunk_cfg_4bit = ChunkModelConfig(2, 2, 4, 3, 100, 56);
+//DisplayConfig display_cfg_4bit_grey = DisplayConfig(chunk_cfg_4bit, 72, 42, false);
+DisplayConfig display_cfg_4bit_rgb  = DisplayConfig(chunk_cfg_4bit, 34, 20, true);
+// 34x20
+
 // 6bit 3x1
 ChunkModelConfig chunk_cfg_6bit = ChunkModelConfig(3, 1, 6, 11, 100, 24);
 DisplayConfig display_cfg_6bit_grey = DisplayConfig(chunk_cfg_6bit, 51, 30, false);
 DisplayConfig display_cfg_6bit_rgb  = DisplayConfig(chunk_cfg_6bit, 30, 16, true);
 
-// 8bit 2x1
+// 8bit 2x1 (ineffecient)
 ChunkModelConfig chunk_cfg_8bit = ChunkModelConfig(2, 1, 8, 3, 100, 56);
 DisplayConfig display_cfg_8bit_grey = DisplayConfig(chunk_cfg_8bit, 42, 24, false);
 DisplayConfig display_cfg_8bit_rgb  = DisplayConfig(chunk_cfg_8bit, 24, 14, true);
@@ -92,11 +98,13 @@ DisplayConfig display_cfg_8bit_rgb  = DisplayConfig(chunk_cfg_8bit, 24, 14, true
 //
 // ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
 //
-DisplayConfig display_cfg = display_cfg_3bit_grey;
+DisplayConfig display_cfg = display_cfg_4bit_rgb;
 //
 // ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
 //
 
+
+Display g_disp = Display(Vector(0,0,0), Vector(0,0,0), display_cfg.width, display_cfg.height, 2, display_cfg.rgb);	
 
 // 1x19
 /*
@@ -115,7 +123,8 @@ void inc_delay(Display disp)
 	if (disp is null)
 		return;
 	//disp.inc();
-	disp.loadFrame();
+	//disp.loadFrame();
+	g_disp.loadFrame();
 }
 
 array<uint> g_num_to_chunk; // converts binary number to chunk details (model + body + skin)
@@ -147,21 +156,28 @@ void init()
 	}
 }
 
+string sound_comms_path = "scripts/maps/temp/sound_comms";
+string sound_comms_path2 = "scripts/maps/temp/sound_comms2";
+
 class Display
 {
 	int width, height;
 	int chunkW, chunkH, chans;
 	float scale;
+	float fps = 30.0f;
 	Vector pos, angles;
 	bool rgb_mode;
 	array<string> rgb_dirs = {"red/", "green/", "blue/"};
 	
-	Vector up, right;
+	Vector up, right, forward;
 	
 	array<array<array<EHandle>>> chunks;
 	
 	File@ f = null;
 	int frameCounter = 0;
+	float videoStartTime = 0;
+	
+	File@ sound_comms = null;
 	
 	Display() {}
 	
@@ -188,18 +204,30 @@ class Display
 			
 		println("Created " + chunkW + "x" + chunkH + " display (" + (chunkW*chunkH) + " ents)");
 		
+		orient(pos, angles);
+	}
+	
+	void orient(Vector pos, Vector angles)
+	{
 		g_EngineFuncs.MakeVectors(angles);
 		up = g_Engine.v_up;
 		right = g_Engine.v_right;
+		forward = g_Engine.v_forward;
 		
 		this.pos = pos + up*(chunkH/2)*display_cfg.chunk.chunkHeight*scale + -right*(chunkW/2)*display_cfg.chunk.chunkWidth*scale;
 		this.angles = angles;
 	}
 	
+	void loadNewVideo(string url)
+	{
+		@sound_comms = g_FileSystem.OpenFile( sound_comms_path, OpenFile::WRITE);
+		sound_comms.Write("load " + url + " " + display_cfg.bits + " " + display_cfg.rgb);
+		sound_comms.Close();
+	}
+	
 	void createChunks()
 	{
 		int channels = display_cfg.rgb ? 3 : 1;
-		
 		
 		for (int c = 0; c < channels; c++)
 		{
@@ -219,6 +247,10 @@ class Display
 				for (int y = 0; y < chunkH; y++)
 				{
 					Vector chunkPos = pos + right*x*display_cfg.chunk.chunkWidth*scale + -up*y*display_cfg.chunk.chunkHeight*scale;
+					
+					//chunkPos = chunkPos - forward*c*scale*2;
+					//chunkPos = chunkPos + right*x*1 + up*y*-1;
+					
 					ckeys["origin"] = chunkPos.ToString();
 					CBaseEntity@ spr = g_EntityFuncs.CreateEntity("item_generic", ckeys, true);
 					spr.pev.solid = SOLID_NOT;
@@ -232,6 +264,13 @@ class Display
 		g_Scheduler.SetTimeout("inc_delay", 0.05, this);
 	}
 	
+	void loadChunks(string fname, float fps)
+	{
+		display_cfg.input_fname = fname;
+		this.fps = fps;
+		@f = null;
+	}
+	
 	void loadFrame()
 	{
 		if (f is null) {
@@ -243,11 +282,22 @@ class Display
 				println("Failed to open " + fpath);
 				return;
 			}
+			
+			// start the sound
+			@sound_comms = g_FileSystem.OpenFile( sound_comms_path, OpenFile::WRITE);
+			sound_comms.Write("play");
+			sound_comms.Close();
+			
+			videoStartTime = g_Engine.time;
+			
 			frameCounter = 0;
 		}
-
+		
+		float targetFrame = (g_Engine.time - videoStartTime) * fps;
+		//println("" + frameCounter + " " + targetFrame);			
+		
 		string line;
-		while( !f.EOFReached() )
+		while( !f.EOFReached() and frameCounter < targetFrame )
 		{
 			f.ReadLine(line);		
 			
@@ -282,13 +332,14 @@ class Display
 					}
 				}
 			}
-			break;
+			if (++frameCounter >= int(targetFrame))
+				break;
 		}
 		
-		frameCounter++;
-		println("Loaded frame " + frameCounter);
+		
+		//println("Loaded frame " + frameCounter);
 		//g_Scheduler.SetTimeout("inc_delay", 0.06666667, this);
-		g_Scheduler.SetTimeout("inc_delay", 0.0333, this);
+		g_Scheduler.SetTimeout("inc_delay", 0.01, this);
 	}
 	
 	void inc()
@@ -344,8 +395,36 @@ TraceResult TraceLook(CBasePlayer@ plr, float dist=128)
 
 void createDisplay(Vector pos, Vector angles)
 {
-	Display disp = Display(pos, angles, display_cfg.width, display_cfg.height, 2, display_cfg.rgb);	
-	disp.createChunks();
+	g_disp.orient(pos, angles);
+	g_disp.createChunks();
+}
+
+void clearCommInput()
+{
+	File@ f = g_FileSystem.OpenFile( sound_comms_path2, OpenFile::WRITE);
+	if( f !is null && f.IsOpen() )
+		f.Remove();
+}
+
+void checkNewVideo() 
+{
+	File@ f = g_FileSystem.OpenFile( sound_comms_path2, OpenFile::READ);
+	
+	if( f !is null && f.IsOpen() )
+	{
+		string line;
+		f.ReadLine(line);
+		array<string> input = line.Split(" ");
+		println("GOT NEW CHUNKS MAYBE: " + input[0] + " " + atof(input[1]));
+		f.Close();
+		clearCommInput();
+
+		g_disp.loadChunks(input[0], atof(input[1]));
+		
+		return;
+	}
+	
+	g_Scheduler.SetTimeout("checkNewVideo", 0.5);
 }
 
 bool doDoomCommand(CBasePlayer@ plr, const CCommand@ args)
@@ -359,6 +438,27 @@ bool doDoomCommand(CBasePlayer@ plr, const CCommand@ args)
 			g_PlayerFuncs.SayText(plr, "Create display\n");
 			TraceResult tr = TraceLook(plr, 128);
 			createDisplay(tr.vecEndPos, plr.pev.angles);
+			return true;
+		}
+		if (args[0] == "download" or args[0] == "d")
+		{
+			// https://github.com/nficano/pytube/pull/313#issuecomment-438175656
+			clearCommInput();
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=zPiAK_RP8dU');
+			g_disp.loadNewVideo('https://www.youtube.com/watch?v=9wnNW4HyDtg');
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=3Fu8ZxBmcnU');		// human bean stutter kid
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=ni9FCzIOX2w');   // human bean flex guy
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=uYmaRNpd-WQ');	// human bean dedotated wam
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=6cAyrdoVpZc');
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=kNdDROtrPcQ');
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=rbEy8EO8Yko');		// jimmy creepy thing
+			g_Scheduler.SetTimeout("checkNewVideo", 0.5);
+			return true;
+		}
+		if (args[0] == "test" or args[0] == "t")
+		{
+			clearCommInput();
+			g_disp.loadChunks("chunks.dat", 30.0f);
 			return true;
 		}
 	}
