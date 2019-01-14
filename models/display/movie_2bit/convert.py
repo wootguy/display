@@ -11,8 +11,8 @@ for file in os.listdir('.'):
 names = sorted(names, key=int)
 
 # choose settings here!!
-bits = 8
-greyscale = True
+bits = 4
+greyscale = False
 # choose settings here!!
 
 chunkSizeX = 6
@@ -83,6 +83,24 @@ else:
 						b += cstep
 						g = 0
 		pgen.save("pal_gen6.bmp")
+	if bits == 4:
+		pgen = Image.new('RGB', (64, 64), color = 'black')
+		pix = pgen.load()
+		r = 0
+		g = 0
+		b = 0
+		cstep = 17
+		for y in range(64):
+			for x in range(64):
+				pix[x,y] = (int(r),int(g),int(b))
+				r += cstep
+				if r > 256:
+					g += cstep
+					r = 0
+					if g > 256:
+						b += cstep
+						g = 0
+		pgen.save("pal_gen4.bmp")
 	if bits == 3:
 		pgen = Image.new('RGB', (32, 16), color = 'black')
 		pix = pgen.load()
@@ -142,7 +160,7 @@ cw = 0
 ch = 0
 chunksPerFrame = 0
 chunks = []
-tempFname = "temp.bmp"
+tempFname = "temp.png"
 for name in names:
 	fname = name + ".bmp"
 	
@@ -150,7 +168,9 @@ for name in names:
 	if os.path.exists(tempFname):
 		os.remove(tempFname)
 		
-	if greyscale:
+	if True:
+		system("gm convert %s -type Palette -colorspace gray -operator matte negate 1 -resize 72x42! -map pal_grey3.bmp -compress none %s" % (fname, tempFname))
+	elif greyscale:
 		if bits == 1:
 			system("magick convert -colorspace gray -resize 126x72! -contrast-stretch 0 -monochrome " + fname + " " + tempFname)
 		elif bits == 2:
@@ -173,7 +193,7 @@ for name in names:
 		if bits == 1:
 			system("magick convert %s -resize 72x42! -remap pal_gen1.bmp -type truecolor +dither %s" % (fname, tempFname))
 	
-	img = Image.open("temp.bmp")
+	img = Image.open(tempFname)
 	pixels = img.load()
 	w, h = img.size
 	

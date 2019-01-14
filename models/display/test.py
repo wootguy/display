@@ -1,7 +1,7 @@
 from PIL import Image
 from os import system
 
-bitsPerPixel = 256
+bitsPerPixel = 16
 tint = (0,0,1)
 
 w = 0
@@ -13,6 +13,9 @@ if bitsPerPixel == 256: # actually 8 bit
 if bitsPerPixel == 64: # actually 6 bit
 	w = 3
 	h = 1
+if bitsPerPixel == 16: # actually 3 bit
+	w = 2
+	h = 2
 if bitsPerPixel == 8: # actually 3 bit
 	w = 3
 	h = 2
