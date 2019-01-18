@@ -369,6 +369,7 @@ void WriteTextures( )
 		ptexture[i].width		= texture[i].skinwidth;
 		ptexture[i].height		= texture[i].skinheight;
 		ptexture[i].index		= (pData - pStart);
+		int offset = pData - pStart;
 		memcpy( pData, texture[i].pdata, texture[i].size );
 		pData += texture[i].size;
 	}
@@ -521,7 +522,7 @@ void WriteModel( )
 
 
 
-#define FILEBUFFER ( 16 * 1024 * 1024)
+#define FILEBUFFER ( 128 * 1024 * 1024)
 	
 
 void WriteFile (void)
