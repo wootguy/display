@@ -441,8 +441,10 @@ class Display
 			int chunkWidth = atoi(info[4]);
 			int chunkHeight = atoi(info[5]);
 			float framerate = atof(info[6]);
-			this.fps = Math.min(30, framerate);
+			this.fps = Math.min(15, framerate);
 			int chunks = (frameWidth/chunkWidth)*(frameHeight/chunkHeight)*(greyscale ? 1 : 3);
+			
+			
 			sayGlobal("Playing " + bits + "-bit " + (greyscale ? "Greyscale " : "RGB ") + frameWidth + "x" + frameHeight 
 				+ " video at " + framerate + " FPS (" + chunks + " chunks)");
 			
@@ -455,7 +457,6 @@ class Display
 			
 			frameCounter = 0;
 			lightFrameCounter = 0;
-			fps = 20;
 		}
 		
 		//fps = 2;
@@ -733,10 +734,10 @@ bool doDoomCommand(CBasePlayer@ plr, const CCommand@ args)
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=A_EeFZUBbog');		// naked snake big boss
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=0tdyU_gW6WE');		// bustin' (not work)
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=h4VuBnRxAaw');		// shaggy's crisis
-			g_disp.loadNewVideo('https://www.youtube.com/watch?v=zuDtACzKGRs');		// das boot
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=zuDtACzKGRs');		// das boot
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=-Z7UnO66q9w');		// frindship is manly
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=zPiAK_RP8dU');		// sci scream
-			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=9wnNW4HyDtg');	// ayayaya
+			g_disp.loadNewVideo('https://www.youtube.com/watch?v=9wnNW4HyDtg');	// ayayaya
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=3Fu8ZxBmcnU');	// human bean stutter kid
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=ni9FCzIOX2w');   // human bean flex guy
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=uYmaRNpd-WQ');	// human bean dedotated wam
