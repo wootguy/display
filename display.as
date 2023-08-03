@@ -426,6 +426,7 @@ class Display
 				return;
 			}
 			
+			/*
 			fpath = "scripts/maps/display/audio.dat";
 			@audioFile = g_FileSystem.OpenFile( fpath, OpenFile::READ );
 			if( audioFile is null or !audioFile.IsOpen())
@@ -434,6 +435,7 @@ class Display
 				g_Scheduler.SetTimeout("inc_delay", 1.0, this);
 				return;
 			}
+			*/
 			
 			string line;
 			f.ReadLine(line);
@@ -483,13 +485,13 @@ class Display
 				frameLoadProgress++;
 			}
 			
-			audioFile.ReadLine(audioLine);
+			//audioFile.ReadLine(audioLine);
 			
 			if (++frameCounter < int(targetFrame))
 				continue;
 			
 			array<string> chunkValues = frameData.Split(" ");
-			array<string> audioValues = audioLine.Split(" ");
+			//array<string> audioValues = audioLine.Split(" ");
 			frameLoadProgress = 0;
 			frameData = "";
 			int chunkTotal = chunkW*chunkH;
