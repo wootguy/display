@@ -43,7 +43,7 @@ def download_video(yt):
 					stream = s
 			print("Possible RES: %s" % s.resolution)
 	print("Downloading video stream: %s" % stream)
-	video = stream.download(output_path='temp', filename='video')
+	video = stream.download(output_path='temp', filename='video.mp4')
 	print("Finished video download")
 
 def download_audio(yt):
@@ -57,7 +57,7 @@ def download_audio(yt):
 	print("Converting audio stream")
 	if os.path.exists('temp/audio.ogg'):
 		os.remove('temp/audio.ogg')
-	system("ffmpeg -i %s temp/audio.ogg" % audio)
+	system("ffmpeg -i \"%s\" temp/audio.ogg" % audio)
 			
 def convert_video(url, bits, greyscale, frameWidth, frameHeight, chunkWidth, chunkHeight):
 	global convert_queue
@@ -98,10 +98,11 @@ def convert_video(url, bits, greyscale, frameWidth, frameHeight, chunkWidth, chu
 		
 		fname = 'temp/video.mp4'
 		print("Extracting frames from %s" % fname)
+		# ffmpeg -i temp/video.mp4 -map 0:v:0 -c copy -f null -
 		output = subprocess.check_output(['ffmpeg', '-i', 'temp/video.mp4', '-map', '0:v:0', '-c', 'copy', '-f', 'null', '-'], stderr=subprocess.STDOUT)
 		output = output.decode('ascii', errors='ignore')
-		frameCount = int( re.search("frame=\s*\d+", output, 0).group().split()[1] )
-		videoTime = re.search("time=\s*\d\d\:\d\d\:\d\d\.\d\d", output, 0).group().split('=')[1]
+		frameCount = int( re.findall("frame=\s*\d+", output, 0)[-1].split()[1] )
+		videoTime = re.findall("time=\s*\d\d\:\d\d\:\d\d\.\d\d", output, 0)[-1].split('=')[1]
 		videoTime = videoTime.split(':')
 		videoTime = int( (float(videoTime[0])*60*60 + float(videoTime[1])*60 + float(videoTime[2])) )
 		framerate = float(frameCount) / float(videoTime)
@@ -274,6 +275,9 @@ def convert_frames(bits, greyscale, frameStep, frameWidth, frameHeight, chunkSiz
 		dither = True
 		if bits >= 7:
 			pal = ''
+			
+		dither = False
+			
 		frameTime = frameNumber*frameStep
 		ffmpeg_cmd = 'ffmpeg -accurate_seek -ss %.2f -i temp/video.mp4 -vframes 1 -s %dx%d -f image2pipe -' % (frameTime, frameWidth, frameHeight)
 		magick_cmd = 'gm convert - %s %s %s png:-' % ("" if dither else "+dither", "-colorspace gray" if greyscale else "", pal)

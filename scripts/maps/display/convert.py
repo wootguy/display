@@ -11,8 +11,8 @@ for file in os.listdir('.'):
 names = sorted(names, key=int)
 
 # choose settings here!!
-bits = 8
-greyscale = True
+bits = 3
+greyscale = False
 # choose settings here!!
 
 chunkSizeX = 6
