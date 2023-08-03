@@ -95,8 +95,9 @@ class ChunkModelConfig
 
 // 1bit 6x3
 ChunkModelConfig chunk_cfg_1bit = ChunkModelConfig(11, 2, 1, 2, 256, 256);
-DisplayConfig display_cfg_1bit_grey = DisplayConfig(chunk_cfg_1bit, 143, 78, false);
-DisplayConfig display_cfg_1bit_rgb  = DisplayConfig(chunk_cfg_1bit, 72, 42, true);
+ChunkModelConfig chunk_cfg_1bit_ld = ChunkModelConfig(6, 3, 1, 1, 256, 256);
+DisplayConfig display_cfg_1bit_grey_ld = DisplayConfig(chunk_cfg_1bit_ld, 60, 30, false);
+DisplayConfig display_cfg_1bit_rgb  = DisplayConfig(chunk_cfg_1bit_ld, 72, 42, true);
 
 // 2bit 3x3
 ChunkModelConfig chunk_cfg_2bit_hd = ChunkModelConfig(11, 1, 2, 2, 256, 256);
@@ -124,6 +125,7 @@ DisplayConfig display_cfg_rgb_332  = DisplayConfig(chunk_cfg_3bit_ld, 48, 30, tr
 ChunkModelConfig chunk_cfg_4bit_ld = ChunkModelConfig(5, 1, 4, 1, 256, 256);
 ChunkModelConfig chunk_cfg_4bit_hd = ChunkModelConfig(3, 2, 4, 8, 256, 256);
 DisplayConfig display_cfg_4bit_grey_ld = DisplayConfig(chunk_cfg_4bit_ld, 58, 32, false);
+DisplayConfig display_cfg_4bit_grey_hd = DisplayConfig(chunk_cfg_4bit_hd, 58, 32, false);
 DisplayConfig display_cfg_4bit_rgb_ld  = DisplayConfig(chunk_cfg_4bit_ld, 34, 20, true);
 DisplayConfig display_cfg_4bit_rgb_hd  = DisplayConfig(chunk_cfg_4bit_hd, 16, 16, true);
 
@@ -155,7 +157,7 @@ string g_quality = "ld/";
 //
 // ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
 //
-DisplayConfig display_cfg = display_cfg_3bit_rgb_ld;
+DisplayConfig display_cfg = display_cfg_7bit_grey_ld;
 //
 // ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
 //
@@ -322,7 +324,8 @@ class Display
 		}
 		
 		this.scale = int((448.0f / height)*0.5f);
-		this.scale = 8;
+		//this.scale = 8; // for everything else
+		this.scale = 6; // for 1 bit greyscale
 		println("SCALE SET TO " + this.scale);
 			
 		println("Created " + chunkW + "x" + chunkH + " display (" + (chunkW*chunkH) + " ents)");
@@ -337,7 +340,7 @@ class Display
 		right = g_Engine.v_right;
 		forward = g_Engine.v_forward;
 		
-		this.pos = pos + up*(chunkH/2)*display_cfg.chunk.chunkHeight*scale + -right*(chunkW/2)*display_cfg.chunk.chunkWidth*scale;
+		this.pos = pos + up*(chunkH/2)*display_cfg.chunk.chunkHeight*scale + -right*(chunkW/2)*display_cfg.chunk.chunkWidth*scale + -forward*(8.0f/scale)*390;
 		this.angles = angles;
 	}
 	
@@ -375,6 +378,7 @@ class Display
 			ckeys["angles"] = (angles + Vector(0,180,0)).ToString();
 			ckeys["rendermode"] = "0";
 			ckeys["renderamt"] = "85";
+			ckeys["targetname"] = "dchunk";
 			
 			for (int x = 0; x < chunkW; x++)
 			{
@@ -509,6 +513,7 @@ class Display
 					{
 						CBaseEntity@ ent = chunks[ch][x][y];
 						
+						/*
 						if (soundIdx < 16 and soundIdx < int(audioValues.size())) {
 							float vol = atof(audioValues[soundIdx]);
 							//vol = (soundIdx / 32.0f);
@@ -518,6 +523,7 @@ class Display
 							}
 						}
 						soundIdx++;
+						*/
 						
 						uint value = atoi(chunkValues[chunkTotal*ch + y*chunkW + x]);
 						if (value >= display_cfg.chunk.numPixelCombinations) {
@@ -710,6 +716,29 @@ bool doDoomCommand(CBasePlayer@ plr, const CCommand@ args)
 	
 	if ( args.ArgC() > 0 )
 	{
+		if (args[0] == "c")
+		{
+			CBaseEntity@ ent = null;
+			do {
+				@ent = g_EntityFuncs.FindEntityByTargetname(ent, "dchunk");
+				if (ent !is null) {
+					g_EntityFuncs.Remove(ent);
+				}
+			} while (ent !is null);
+	
+			display_cfg = display_cfg_3bit_grey_ld;
+			
+			g_disp = Display(Vector(0,0,0), Vector(0,0,0), display_cfg.width, display_cfg.height, 4, display_cfg.rgb);	
+			init();
+			CBaseEntity@ disp_target = g_EntityFuncs.FindEntityByTargetname(null, "display_ori");
+			createDisplay(disp_target.pev.origin, disp_target.pev.angles);
+			g_PlayerFuncs.SayText(plr, "Changed display\n");
+			
+			clearCommInput();
+			g_disp.loadChunks("chunks.dat", 30.0f);
+			
+			return true;
+		}
 		if (args[0] == "y")
 		{
 			CBaseEntity@ disp_target = g_EntityFuncs.FindEntityByTargetname(null, "display_ori");
@@ -738,6 +767,8 @@ bool doDoomCommand(CBasePlayer@ plr, const CCommand@ args)
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=-Z7UnO66q9w');		// frindship is manly
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=zPiAK_RP8dU');		// sci scream
 			g_disp.loadNewVideo('https://www.youtube.com/watch?v=9wnNW4HyDtg');	// ayayaya
+			//g_disp.loadNewVideo('https://www.youtube.com/shorts/JkjgK3zuvPI');	// the prophecy is true
+			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=zZdVwTjUtjg&pp=ygUSb3V0IG9mIHRvdWNoIHJlbWl4');	// the prophecy is true
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=3Fu8ZxBmcnU');	// human bean stutter kid
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=ni9FCzIOX2w');   // human bean flex guy
 			//g_disp.loadNewVideo('https://www.youtube.com/watch?v=uYmaRNpd-WQ');	// human bean dedotated wam
