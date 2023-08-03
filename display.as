@@ -157,7 +157,7 @@ string g_quality = "ld/";
 //
 // ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
 //
-DisplayConfig display_cfg = display_cfg_7bit_grey_ld;
+DisplayConfig display_cfg = display_cfg_3bit_rgb_ld;
 //
 // ~~~~~~~~~~~~~~~~~~~ CHOOSE CONFIG HERE ~~~~~~~~~~~~~~~~~~~
 //
@@ -324,8 +324,8 @@ class Display
 		}
 		
 		this.scale = int((448.0f / height)*0.5f);
-		//this.scale = 8; // for everything else
-		this.scale = 6; // for 1 bit greyscale
+		this.scale = 8; // for everything else
+		//this.scale = 6; // for 1 bit greyscale
 		println("SCALE SET TO " + this.scale);
 			
 		println("Created " + chunkW + "x" + chunkH + " display (" + (chunkW*chunkH) + " ents)");
@@ -340,7 +340,7 @@ class Display
 		right = g_Engine.v_right;
 		forward = g_Engine.v_forward;
 		
-		this.pos = pos + up*(chunkH/2)*display_cfg.chunk.chunkHeight*scale + -right*(chunkW/2)*display_cfg.chunk.chunkWidth*scale + -forward*(8.0f/scale)*390;
+		this.pos = pos + up*(chunkH/2)*display_cfg.chunk.chunkHeight*scale + -right*(chunkW/2)*display_cfg.chunk.chunkWidth*scale;// + -forward*(8.0f/scale)*390;
 		this.angles = angles;
 	}
 	
