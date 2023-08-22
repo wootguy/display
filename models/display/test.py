@@ -2,8 +2,7 @@ from PIL import Image
 from os import system
 import math
 
-bitsPerPixel = 128
-tint = (1,1,1)
+bitsPerPixel = 8
 
 w = 0
 h = 0
@@ -11,7 +10,7 @@ h = 0
 if bitsPerPixel == 256: # actually 8 bit
 	w = 3
 	h = 1
-if bitsPerPixel == 128: # actually 6 bit
+if bitsPerPixel == 128: # actually 7 bit
 	w = 3
 	h = 1
 if bitsPerPixel == 64: # actually 6 bit
@@ -33,7 +32,7 @@ if bitsPerPixel == 2: # actually 1 bit
 	w = 6
 	h = 3
 	
-pad = 0 # bilinear filtering will make chunk borders obvious without this
+pad = 1 # bilinear filtering will make chunk borders obvious without this
 
 polyGap = 256
 polyDim = 256
@@ -43,8 +42,6 @@ maxSkinsPerMdl = 256
 maxModelBodies = 256
 masterChunkDim = int(math.sqrt(maxModelBodies*polyDim))
 masterChunkDim = 256
-#masterW = (w+pad)*256 + pad
-#masterH = (h+pad)*256 + pad
 
 # combos = 43520
 # 170*256
@@ -53,6 +50,19 @@ combos = bitsPerPixel**(w*h)
 
 masterW = w*64
 masterH = h*128
+
+# bigger textures cause lag (above 512?)
+'''
+masterW = w
+masterH = h
+while masterW <= 1024:
+	masterW *= 2
+masterW = int(masterW/2)
+while masterH <= 1024:
+	masterH *= 2
+masterH = int(masterH/2)
+'''
+
 combosPerSkin = int(masterW / w) * int(masterH / h)
 polyDim = math.ceil(combosPerSkin / maxModelBodies)
 bodiesPerSkin = min(256, combos / polyDim)
@@ -85,7 +95,11 @@ print("possible combos %s" % combos)
 
 args = ''
 
-img = Image.new('RGB', (masterW, masterH))
+paddedMasterW = (w+pad*2)*64
+paddedMasterH = (h+pad*2)*128
+print("Padded master size: %dx%d" % (paddedMasterW, paddedMasterH))
+
+img = Image.new('RGB', (paddedMasterW, paddedMasterH))
 pixels = img.load()
 
 smd_header = '''version 1
@@ -173,8 +187,8 @@ inc = 256/(bitsPerPixel-1)
 for combo in range(0, combos):
 	bits = []
 				
-	offsetX = masterX*(w+pad) + pad
-	offsetY = masterY*(h+pad) + pad
+	offsetX = masterX*(w+pad*2) + pad
+	offsetY = masterY*(h+pad*2) + pad
 	
 	for level in range(bitsPerPixel):
 		inc_level = inc*(1 << level)
@@ -189,29 +203,29 @@ for combo in range(0, combos):
 					mb = int( min(pixels[px,py][2] + inc_level, 255) )
 					pixels[px,py] = (mr,mg,mb)
 
-					if pad > 0 and bitsPerPixel == 2:
+					if pad > 0:
 						# draw pixels on borders to prevent bilinear filtering to an adjacent pixel outside of the chunk
-						if x == 0: pixels[px-1,py] = (255,255,255)
-						if y == 0: pixels[px,py-1] = (255,255,255)
-						if x == w-1: pixels[px+1,py] = (255,255,255)
-						if y == h-1: pixels[px,py+1] = (255,255,255)
+						if x == 0: pixels[px-1,py] = pixels[px,py]
+						if y == 0: pixels[px,py-1] = pixels[px,py]
+						if x == w-1: pixels[px+1,py] = pixels[px,py]
+						if y == h-1: pixels[px,py+1] = pixels[px,py]
 						
 						# top left corner
-						if x == 0 and y == 0: pixels[px-1,py-1] = (255,255,255)
+						if x == 0 and y == 0: pixels[px-1,py-1] = pixels[px,py]
 						# top right corner
-						if x == w-1 and y == 0: pixels[px+1,py-1] = (255,255,255)
+						if x == w-1 and y == 0: pixels[px+1,py-1] = pixels[px,py]
 						# bottom left corner
-						if x == 0 and y == h-1: pixels[px-1,py+1] = (255,255,255)
+						if x == 0 and y == h-1: pixels[px-1,py+1] = pixels[px,py]
 						# bottom right corner
-						if x == w-1 and y == h-1: pixels[px+1,py+1] = (255,255,255)
+						if x == w-1 and y == h-1: pixels[px+1,py+1] = pixels[px,py]
 	
 	if not wroteAllMeshesForModel:
 		f = smd
 		
-		u1 = offsetX / masterW
-		u2 = (offsetX+w) / masterW
-		v2 = 1 - (offsetY / masterH)
-		v1 = 1 - ((offsetY+h) / masterH)
+		u1 = offsetX / paddedMasterW
+		u2 = (offsetX+w) / paddedMasterW
+		v2 = 1 - (offsetY / paddedMasterH)
+		v1 = 1 - ((offsetY+h) / paddedMasterH)
 		
 		if False:
 			for pz in range(polyDim):
@@ -252,10 +266,10 @@ for combo in range(0, combos):
 
 	isLast = combo == combos-1
 	masterX += 1
-	if isLast or masterX*(w+pad) + w > masterW:
+	if isLast or masterX*w + w > masterW:
 		masterX = 0
 		masterY += 1
-		if isLast or masterY*(h+pad) + h > masterH:
+		if isLast or masterY*h + h > masterH:
 			print("Master idx %s filled at %s" % (masterIdx, combo))
 
 			if not wroteAllMeshesForModel:
@@ -265,13 +279,10 @@ for combo in range(0, combos):
 				smd.close()
 			
 			masterX = masterY = 0
-			img = img.resize((masterW*masterScale, masterH*masterScale))
-			for y in range(masterH):
-				for x in range(masterW):
-					pixels[x,y] = (pixels[x,y][0]*tint[0], pixels[x,y][1]*tint[1], pixels[x,y][2]*tint[2])
+			img = img.resize((paddedMasterW*masterScale, paddedMasterH*masterScale))
 			img = img.quantize()
 			img.save("%s.bmp" % getTexName(masterIdx))
-			img = Image.new('RGB', (masterW, masterH))
+			img = Image.new('RGB', (paddedMasterW, paddedMasterH))
 			pixels = img.load()
 			masterIdx += 1
 			
