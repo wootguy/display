@@ -149,6 +149,10 @@ bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int
         return false;
     }
 
+    if (peekChildProcessStdout(subpid, outputBuffer, bytesWanted) == 0) {
+        return false;
+    }
+
     DWORD dwRead;
     BOOL bSuccess = ReadFile(pdata->hStd_OUT_Rd, outputBuffer, bytesWanted, &dwRead, NULL);
     bytesRead = dwRead;

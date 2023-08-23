@@ -11,6 +11,13 @@ using namespace std;
 
 const char* video_buffer_file = "svencoop_addon/scripts/maps/display/video.mkv";
 const char* audio_buffer_file = "svencoop_addon/scripts/maps/display/audio.mp3";
+const char* python_script_path = "svencoop_addon/scripts/maps/display/test.py";
+
+#ifdef WIN32
+const char* python_program = "python";
+#else
+const char* python_program = "python3";
+#endif
 
 long filesize(const char* filename)
 {
@@ -158,9 +165,7 @@ void VideoPlayer::readFfmpegOutput(int subpid) {
 
 	int wantBytes = actualWidth * actualHeight * sizeof(color24);
 
-	if (peekChildProcessStdout(subpid, (char*)frameData, wantBytes) >= wantBytes) {
-		readChildProcessStdout(subpid, (char*)frameData, wantBytes, bytesRead);
-	}
+	readChildProcessStdout(subpid, (char*)frameData, wantBytes, bytesRead);
 
 	if (bytesRead > 0 || isProcessAlive(subpid)) {
 		if (wantBytes == bytesRead) {
@@ -170,7 +175,7 @@ void VideoPlayer::readFfmpegOutput(int subpid) {
 		frameIdx++;
 	}
 	else {
-		decodePid = -1;
+		decodePid = 0;
 
 		if (!m_video_downloading) {
 			println("Video finished playing at %d frames", frameIdx);
@@ -191,9 +196,7 @@ void VideoPlayer::monitorVideoDownloadProcess(int subpid) {
 	static char buffer[512];
 	int bytesRead = 0;
 
-	if (peekChildProcessStdout(subpid, (char*)buffer, 512) > 0) {
-		readChildProcessStdout(subpid, (char*)buffer, 512, bytesRead);
-	}
+	readChildProcessStdout(subpid, (char*)buffer, 512, bytesRead);
 
 	if (bytesRead > 0 || isProcessAlive(subpid)) {
 		if (bytesRead > 0) {
@@ -201,7 +204,7 @@ void VideoPlayer::monitorVideoDownloadProcess(int subpid) {
 		}
 
 		if (!m_video_playing && !m_video_buffering) {
-			if (filesize(video_buffer_file) > 0) {
+			if (filesize(video_buffer_file) > 0 && filesize(audio_buffer_file) > 0) {
 				println("File has been written to! Begin playback soon");
 				m_video_buffering = true;
 				m_video_playing = true;
@@ -213,7 +216,7 @@ void VideoPlayer::monitorVideoDownloadProcess(int subpid) {
 	else {
 		println("Video finished downloading");
 		m_video_downloading = false;
-		downloadPid = -1;
+		downloadPid = 0;
 	}
 }
 
@@ -260,18 +263,27 @@ void VideoPlayer::loadNewVideo() {
 	string video_codec = UTIL_VarArgs("-c:v libx264 -preset veryfast -crf 18 -filter:v fps=%d -s %dx%d -tune fastdecode -map 0:v:0 %s",
 		fps, width, height, video_buffer_file);
 
-	const char* audio_output_path = "svencoop_addon/scripts/maps/display/audio.mp3";
-	string audio_codec = UTIL_VarArgs("-c:a libmp3lame -q:a 6 -ar 12000 -map 0:a:0 %s", audio_output_path);
+	
+	string audio_codec = UTIL_VarArgs("-c:a libmp3lame -q:a 6 -ar 12000 -map 0:a:0 %s", audio_buffer_file);
 
-	const char* ffmpem_cmd = UTIL_VarArgs("ffmpeg -hide_banner -threads 1 -y -i %s %s %s",
-		keyvals["url"].c_str(), video_codec.c_str(), audio_codec.c_str());
+	#ifndef WIN32
+	keyvals["url"] = "'" + keyvals["url"] + "'";
+	#endif
+	
+	string ffmpeg_cmd = "ffmpeg -hide_banner -loglevel error -threads 1 -y -i " + keyvals["url"] + " " + video_codec + " " + audio_codec;
 
-	int subpid = createChildProcess(ffmpem_cmd);
+	if (ffmpeg_cmd.size() > 512) {
+		printp("%s", ffmpeg_cmd.substr(0, 512).c_str());
+		println("%s", ffmpeg_cmd.substr(512).c_str());
+	} else {
+		println("%s", ffmpeg_cmd.c_str());
+	}
+	
+	int subpid = createChildProcess(ffmpeg_cmd.c_str());
 
-	if (subpid != -1) {
+	if (subpid != 0) {
 		m_video_downloading = true;
 		downloadPid = subpid;
-		monitorVideoDownloadProcess(subpid);
 	}
 	else {
 		println("Failed to create child process");
@@ -283,9 +295,7 @@ void VideoPlayer::readPythonOutput(int subpid) {
 
 	int bytesRead = 0;
 
-	if (peekChildProcessStdout(subpid, (char*)buffer, 512) > 0) {
-		readChildProcessStdout(subpid, (char*)buffer, 512, bytesRead);
-	}
+	readChildProcessStdout(subpid, (char*)buffer, 512, bytesRead);
 
 	if (bytesRead > 0 || isProcessAlive(subpid)) {
 		if (bytesRead > 0) {
@@ -298,7 +308,7 @@ void VideoPlayer::readPythonOutput(int subpid) {
 		loadNewVideo();
 		m_python_output = "";
 		m_python_running = false;
-		pythonPid = -1;
+		pythonPid = 0;
 	}
 }
 
@@ -306,10 +316,11 @@ void VideoPlayer::loadVideoInfo(string url) {
 	m_python_output = "";
 	m_python_running = true;
 
-	const char* script_path = "svencoop_addon/scripts/maps/display/test.py";
-	int subpid = createChildProcess(UTIL_VarArgs("python %s %s", script_path, url.c_str()));
+	const char* cmd = UTIL_VarArgs("%s %s %s", python_program, python_script_path, url.c_str());
+	println(cmd);
+	int subpid = createChildProcess(cmd);
 
-	if (subpid != -1) {
+	if (subpid != 0) {
 		pythonPid = subpid;
 	}
 	else {
@@ -331,10 +342,10 @@ void VideoPlayer::playNewVideo(int frameOffset) {
 	//int subpid = createChildProcess("ffmpeg -version");
 	float seekto = float(frameOffset) / m_disp.fps;
 	const char* cmd = UTIL_VarArgs("ffmpeg -threads 1 -hide_banner -loglevel error -i %s -ss %.2f -f rawvideo -pix_fmt rgb24 -", video_buffer_file, seekto);
-	println(cmd);
+	println("%s", cmd);
 	int subpid = createChildProcess(cmd);
 
-	if (subpid != -1) {
+	if (subpid != 0) {
 		m_video_buffering = false;
 		m_video_playing = true;
 		decodePid = subpid;
@@ -347,6 +358,7 @@ void VideoPlayer::playNewVideo(int frameOffset) {
 }
 
 void VideoPlayer::stopVideo() {
+	println("Stopping video");
 	killAllChildren();
 	m_disp.clear();
 	audio_player->stop();
@@ -354,9 +366,9 @@ void VideoPlayer::stopVideo() {
 	m_video_buffering = false;
 	m_video_downloading = false;
 
-	pythonPid = -1;
-	decodePid = -1;
-	downloadPid = -1;
+	pythonPid = 0;
+	decodePid = 0;
+	downloadPid = 0;
 	frameIdx = 0;
 }
 
@@ -381,13 +393,13 @@ void VideoPlayer::think() {
 		return;
 	}
 
-	if (pythonPid != -1) {
+	if (pythonPid != 0) {
 		readPythonOutput(pythonPid);
 	}
-	if (downloadPid != -1) {
+	if (downloadPid != 0) {
 		monitorVideoDownloadProcess(downloadPid);
 	}
-	if (decodePid != -1) {
+	if (decodePid != 0) {
 		readFfmpegOutput(decodePid);
 	}
 	if (nextVideoPlay && nextVideoPlay < g_engfuncs.pfnTime()) {
