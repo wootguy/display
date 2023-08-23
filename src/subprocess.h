@@ -10,8 +10,6 @@ bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int
 
 bool isProcessAlive(int subpid);
 
-int peekChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted);
-
 bool killChildProcess(int subpid);
 
 void killAllChildren();

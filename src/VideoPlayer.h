@@ -42,9 +42,9 @@ private:
 	int actualWidth = 42;
 	int actualHeight = 22;
 
-	int pythonPid = -1;
-	int decodePid = -1;
-	int downloadPid = -1;
+	uint32_t pythonPid = 0;
+	uint32_t decodePid = 0;
+	uint32_t downloadPid = 0;
 
 	int frameIdx = 0;
 
