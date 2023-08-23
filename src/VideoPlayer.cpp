@@ -69,8 +69,8 @@ void VideoPlayer::play(string url, float fps) {
 void VideoPlayer::convertFrame() {
 	int w = m_disp.width;
 	int h = m_disp.height;
-	int channels = 3;
-	int bits = 3;
+	int channels = m_disp.chans;
+	int bits = display_cfg.bits;
 
 	int chunkSizeX = display_cfg.chunk.chunkWidth;
 	int chunkSizeY = display_cfg.chunk.chunkHeight;
@@ -129,7 +129,7 @@ void VideoPlayer::convertFrame() {
 							float bestDiff = 999;
 
 							for (int k = 0; k < totalSteps; k++) {
-								float diff = abs(val - step * (k + 1));
+								float diff = abs((float)val - step * (k + 1));
 								if (diff < bestDiff) {
 									bestStep = k;
 									bestDiff = diff;
@@ -202,31 +202,55 @@ void VideoPlayer::monitorVideoDownloadProcess(int subpid) {
 		if (bytesRead > 0) {
 			//printp("%s", output.c_str());
 		}
-
-		if (!m_video_playing && !m_video_buffering) {
-			if (filesize(video_buffer_file) > 0 && filesize(audio_buffer_file) > 0) {
-				println("File has been written to! Begin playback soon");
-				m_video_buffering = true;
-				m_video_playing = true;
-				nextVideoPlay = g_engfuncs.pfnTime() + 3;
-				nextPlayOffset = 0;
-			}
-		}
 	}
 	else {
-		println("Video finished downloading");
+		float time = g_engfuncs.pfnTime() - downloadStartTime;
+		ClientPrintAll(HUD_PRINTNOTIFY, UTIL_VarArgs("[Video] Finished downloading in %ds (%.1fx rate)\n", (int)time, duration / time));
 		m_video_downloading = false;
 		downloadPid = 0;
+		int videoSize = filesize(video_buffer_file);
+		int audioSize = filesize(audio_buffer_file);
+		if (videoSize == 0 || audioSize == 0) {
+			ClientPrintAll(HUD_PRINTTALK, "[Video] Failed to load:\n");
+			ClientPrintAll(HUD_PRINTTALK, "  Video/audio stream missing.\n");
+		}
+	}
+
+	if (!m_video_playing && !m_video_buffering) {
+		int videoSize = filesize(video_buffer_file);
+		int audioSize = filesize(audio_buffer_file);
+		if (videoSize > 1024 && audioSize > 1024) {
+			println("Start with sizes %dk %dk", videoSize / 1024, audioSize / 1024);
+			ClientPrintAll(HUD_PRINTNOTIFY, "[Video] Playback starting\n");
+			m_video_buffering = true;
+			m_video_playing = true;
+			nextVideoPlay = g_engfuncs.pfnTime() + 2;
+			nextPlayOffset = 0;
+		}
 	}
 }
 
 void VideoPlayer::loadNewVideo() {
 	stopVideo();
+	
+	remove(video_buffer_file);
+	remove(audio_buffer_file);
 
 	string header = "---MEDIA_PLAYER_MM_INFO_BEGINS---";
-	int outstart = m_python_output.find("---MEDIA_PLAYER_MM_INFO_BEGINS---");
+	int outstart = m_python_output.find(header);
 	if (outstart == -1) {
-		println("Failed to find video info");
+		string errorHeader = "---MEDIA_PLAYER_MM_ERROR_BEGINS---";
+		int errstart = m_python_output.find(errorHeader);
+
+		ClientPrintAll(HUD_PRINTTALK, "[Video] Failed to load:\n");
+		if (errstart != -1) {
+			string err = "  " + trimSpaces(m_python_output.substr(errstart + errorHeader.size())) + "\n";
+			ClientPrintAll(HUD_PRINTTALK, err.substr(0,255).c_str());
+		}
+		else {
+			ClientPrintAll(HUD_PRINTTALK, "(no reason given)\n");
+		}
+
 		return;
 	}
 
@@ -250,12 +274,29 @@ void VideoPlayer::loadNewVideo() {
 
 	//println("URL IS %s", keyvals["url"].c_str());
 
-	ClientPrintAll(HUD_PRINTNOTIFY, UTIL_VarArgs("Loading video: %s\n", keyvals["title"].c_str()));
+	ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] %s\n", keyvals["title"].c_str()));
 
 	int offset = 0;
 	int fps = 15;
 	int width = atoi(keyvals["width"].c_str());
 	int height = atoi(keyvals["height"].c_str());
+	duration = atof(keyvals["length"].c_str());
+
+	float ratio = (float)width / height;
+	float inv_ratio = (float)height / width;
+
+	int maxWidth = display_cfg.width;
+	int maxHeight = display_cfg.height;
+
+	if (width > maxWidth) {
+		width = maxWidth;
+		height = ((int)(width * inv_ratio) / 2) * 2;
+	}
+
+	if (height > maxHeight) {
+		height = maxHeight;
+		width = ((int)(height * ratio) / 2) * 2;
+	}
 
 	actualWidth = width;
 	actualHeight = height;
@@ -264,9 +305,12 @@ void VideoPlayer::loadNewVideo() {
 		fps, width, height, video_buffer_file);
 
 	
-	string audio_codec = UTIL_VarArgs("-c:a libmp3lame -q:a 6 -ar 12000 -map 0:a:0 %s", audio_buffer_file);
+	string loudnorm_filter = "-af loudnorm=I=-22:LRA=11:TP=-1.5";
+	string audio_codec = "-c:a libmp3lame -q:a 6 -ar 12000 " + loudnorm_filter + " -map 0:a:0 " + audio_buffer_file;
 
-	#ifndef WIN32
+	#ifdef WIN32
+	keyvals["url"] = "\"" + keyvals["url"] + "\"";
+	#else
 	keyvals["url"] = "'" + keyvals["url"] + "'";
 	#endif
 	
@@ -282,6 +326,7 @@ void VideoPlayer::loadNewVideo() {
 	int subpid = createChildProcess(ffmpeg_cmd.c_str());
 
 	if (subpid != 0) {
+		downloadStartTime = g_engfuncs.pfnTime();
 		m_video_downloading = true;
 		downloadPid = subpid;
 	}
@@ -334,10 +379,7 @@ void VideoPlayer::playNewVideo(int frameOffset) {
 		return;
 	}
 
-	if (!audio_player->playMp3(audio_buffer_file)) {
-		println("Failed to load audio file");
-		return;
-	}
+	audio_player->playMp3(audio_buffer_file);
 
 	//int subpid = createChildProcess("ffmpeg -version");
 	float seekto = float(frameOffset) / m_disp.fps;

@@ -63,7 +63,7 @@ Mp3DecodeState* initMp3(string fileName) {
 
 	state->file = fopen(fileName.c_str(), "rb");
 	if (!state->file) {
-		fprintf(stderr, "Unable to open: %s\n", fileName.c_str());
+		println("Unable to open: %s\n", fileName.c_str());
 		delete state;
 		return NULL;
 	}

@@ -92,8 +92,6 @@ bool isProcessAlive(int subpid) {
 
 	if (result == 0) {
 		return true;
-	} else if (result == -1) {
-		println("Error in waitpid");
 	}
 
 	return false;

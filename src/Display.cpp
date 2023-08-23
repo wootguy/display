@@ -1,11 +1,60 @@
 #include "Display.h"
 
-ChunkModelConfig chunk_cfg_3bit_ld = ChunkModelConfig(7, 1, // chunk width, height
-	3, // bits
-	1, // models
-	256, // skins per model
-	256);
-DisplayConfig display_cfg = DisplayConfig(chunk_cfg_3bit_ld, 42, 22, true);
+// 1bit 6x3
+ChunkModelConfig chunk_cfg_1bit = ChunkModelConfig(11, 2, 1, 2, 256, 256);
+ChunkModelConfig chunk_cfg_1bit_ld = ChunkModelConfig(6, 3, 1, 1, 256, 256);
+DisplayConfig display_cfg_1bit_grey_ld = DisplayConfig(chunk_cfg_1bit_ld, 60, 30, false);
+DisplayConfig display_cfg_1bit_rgb = DisplayConfig(chunk_cfg_1bit_ld, 72, 42, true);
+
+// 2bit 3x3
+ChunkModelConfig chunk_cfg_2bit_hd = ChunkModelConfig(11, 1, 2, 2, 256, 256);
+ChunkModelConfig chunk_cfg_2bit_ld = ChunkModelConfig(5, 2, 2, 1, 256, 256);
+DisplayConfig display_cfg_2bit_grey_ld = DisplayConfig(chunk_cfg_2bit_ld, 87, 51, false);
+DisplayConfig display_cfg_2bit_grey_hd = DisplayConfig(chunk_cfg_2bit_hd, 87, 51, false);
+DisplayConfig display_cfg_2bit_rgb_ld = DisplayConfig(chunk_cfg_2bit_ld, 51, 30, true);
+DisplayConfig display_cfg_2bit_rgb_hd = DisplayConfig(chunk_cfg_2bit_hd, 51, 30, true);
+
+// 3bit 3x2
+ChunkModelConfig chunk_cfg_3bit_ld = ChunkModelConfig(7, 1, 3, 1, 256, 256);
+ChunkModelConfig chunk_cfg_3bit_hd = ChunkModelConfig(4, 2, 3, 8, 256, 256);
+DisplayConfig display_cfg_3bit_grey_hd = DisplayConfig(chunk_cfg_3bit_hd, 80, 48, false);
+DisplayConfig display_cfg_3bit_grey_ld = DisplayConfig(chunk_cfg_3bit_ld, 77, 46, false);
+DisplayConfig display_cfg_3bit_rgb_ld = DisplayConfig(chunk_cfg_3bit_ld, 42, 28, true);
+DisplayConfig display_cfg_3bit_rgb_hd = DisplayConfig(chunk_cfg_3bit_hd, 48, 28, true);
+
+// 2bit red, 3bit green, 1bit blue
+DisplayConfig display_cfg_rgb_332 = DisplayConfig(chunk_cfg_3bit_ld, 48, 30, true);
+// 16x15 = 240
+// 16x10 = 160
+// 8x10 = 80
+
+// 4bit 2x2 (ineffecient)
+ChunkModelConfig chunk_cfg_4bit_ld = ChunkModelConfig(5, 1, 4, 1, 256, 256);
+ChunkModelConfig chunk_cfg_4bit_hd = ChunkModelConfig(3, 2, 4, 8, 256, 256);
+DisplayConfig display_cfg_4bit_grey_ld = DisplayConfig(chunk_cfg_4bit_ld, 58, 32, false);
+DisplayConfig display_cfg_4bit_grey_hd = DisplayConfig(chunk_cfg_4bit_hd, 58, 32, false);
+DisplayConfig display_cfg_4bit_rgb_ld = DisplayConfig(chunk_cfg_4bit_ld, 34, 20, true);
+DisplayConfig display_cfg_4bit_rgb_hd = DisplayConfig(chunk_cfg_4bit_hd, 16, 16, true);
+
+// 5bit 3x1
+ChunkModelConfig chunk_cfg_5bit_ld = ChunkModelConfig(2, 2, 5, 1, 256, 256);
+DisplayConfig display_cfg_5bit_grey_ld = DisplayConfig(chunk_cfg_5bit_ld, 51, 30, false);
+DisplayConfig display_cfg_5bit_rgb_ld = DisplayConfig(chunk_cfg_5bit_ld, 30, 16, true);
+
+// 6bit 3x1
+ChunkModelConfig chunk_cfg_6bit_ld = ChunkModelConfig(3, 1, 6, 11, 100, 256);
+ChunkModelConfig chunk_cfg_6bit_hd = ChunkModelConfig(2, 2, 6, 11, 100, 256);
+DisplayConfig display_cfg_6bit_grey_ld = DisplayConfig(chunk_cfg_6bit_ld, 51, 30, false);
+DisplayConfig display_cfg_6bit_grey_hd = DisplayConfig(chunk_cfg_6bit_hd, 51, 30, false);
+DisplayConfig display_cfg_6bit_rgb_ld = DisplayConfig(chunk_cfg_6bit_ld, 30, 16, true);
+
+// 7bit
+ChunkModelConfig chunk_cfg_7bit_ld = ChunkModelConfig(3, 1, 7, 1, 256, 256);
+DisplayConfig display_cfg_7bit_grey_ld = DisplayConfig(chunk_cfg_7bit_ld, 51, 30, false);
+DisplayConfig display_cfg_7bit_rgb_ld = DisplayConfig(chunk_cfg_7bit_ld, 30, 16, true);
+
+//DisplayConfig display_cfg = display_cfg_3bit_rgb_ld;
+DisplayConfig display_cfg = display_cfg_3bit_grey_ld;
 
 string g_quality = "ld/";
 
@@ -261,7 +310,7 @@ void Display::setChunkValue(int x, int y, int chan, uint32_t value) {
 	ent->pev->frame = frameIdx;
 }
 
-void Display::setLightValue(int r, int g, int b, int a) {
+void Display::setLightValue(int r, int g, int b, int a) {	
 	float sum = (r + g + b);
 	if (sum == 0)
 		sum = 1;
@@ -269,7 +318,11 @@ void Display::setLightValue(int r, int g, int b, int a) {
 	bool g_on = (g / sum) >= 0.28;
 	bool b_on = (b / sum) >= 0.28;
 	lightColor = Color(int(r * 0.1f), int(g * 0.1f), int(b * 0.1f));
-	background.GetEntity()->pev->rendercolor = Vector(r, g, b);
+
+	CBaseEntity* bgent = background;
+	if (bgent) {
+		bgent->pev->rendercolor = Vector(r, g, b);
+	}
 
 	Vector lightPos = pos + forward * scale * -256 + right * scale * width * 0.5f + up * scale * height * -0.5f;
 	te_dlight(lightPos, 96, lightColor, 1, 0); // 0 causes too much flickering, 2 is too delayed

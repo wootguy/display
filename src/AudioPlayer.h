@@ -50,7 +50,7 @@ public:
 	AudioPlayer(int playerIdx);
 	~AudioPlayer();
 
-	bool playMp3(std::string mp3Path);
+	void playMp3(std::string mp3Path);
 
 	void think(); // don't call directly unless in single thread mode
 
