@@ -51,6 +51,9 @@ private:
 	float nextVideoPlay = 0;
 	int nextPlayOffset = 0;
 
+	float downloadStartTime = 0;
+	float duration = 0;
+
 	void convertFrame();
 
 	void readFfmpegOutput(int subpid);

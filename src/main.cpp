@@ -33,9 +33,10 @@ bool doCommand(edict_t* plr) {
 	args.loadArgs();
 	string lowerArg = toLowerCase(args.ArgV(0));
 
-    if (lowerArg == "d") {
+    if (lowerArg == "t") {
 		println("TEST META PLAYER");
 
+		g_video_player->stopVideo();
 		g_video_player->playNewVideo(0);
 
 		/*
@@ -52,6 +53,9 @@ bool doCommand(edict_t* plr) {
     }
 	if (lowerArg == "s") {
 		g_video_player->stopVideo();
+	}
+	if (lowerArg == "d") {
+		g_video_player->play("https://www.youtube.com/watch?v=zZdVwTjUtjg", 30);
 	}
 
 	if (args.ArgV(0).find("http") == 0)
@@ -86,10 +90,16 @@ void MapInit(edict_t* pEdictList, int edictCount, int maxClients) {
 	RETURN_META(MRES_IGNORED);
 }
 
+void MapChange() {
+	g_video_player->stopVideo();
+	RETURN_META(MRES_IGNORED);
+}
+
 void PluginInit() {
 	g_dll_hooks.pfnStartFrame = StartFrame;
 	g_dll_hooks.pfnClientCommand = ClientCommand;
 	g_dll_hooks.pfnServerActivate = MapInit;
+	g_dll_hooks.pfnServerDeactivate = MapChange;
 
 	g_main_thread_id = std::this_thread::get_id();
 

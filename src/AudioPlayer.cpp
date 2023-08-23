@@ -159,17 +159,8 @@ void AudioPlayer::stop() {
 	stopSignal = true;
 }
 
-bool AudioPlayer::playMp3(string mp3Path) {
-	mp3state = initMp3(mp3Path);
-	if (!mp3state)
-		return false;
-
-	encodeBuffer.clear();
-	startingNewSound = true;
-	for (int i = 0; i < MAX_PLAYERS; i++)
-		encoder[i]->reset();
-
-	return true;
+void AudioPlayer::playMp3(string mp3Path) {
+	commands.enqueue(mp3Path);
 }
 
 void AudioPlayer::think() {
@@ -181,7 +172,7 @@ void AudioPlayer::think() {
 		this_thread::sleep_for(chrono::milliseconds(50));
 #endif
 		if (stopSignal) {
-			delete mp3state;
+			destroyMp3(mp3state);
 			mp3state = NULL;
 			encodeBuffer.clear();
 			for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -190,6 +181,18 @@ void AudioPlayer::think() {
 				encoder[i]->reset();
 			}
 			stopSignal = false;
+		}
+
+		string mp3command;
+		if (commands.dequeue(mp3command)) {
+			destroyMp3(mp3state);
+			mp3state = initMp3(mp3command);
+			if (mp3state) {
+				encodeBuffer.clear();
+				startingNewSound = true;
+				for (int i = 0; i < MAX_PLAYERS; i++)
+					encoder[i]->reset();
+			}
 		}
 
 		while (!exitSignal && (outPackets[0].size() < IDEAL_BUFFER_SIZE) && (mp3state || encodeBuffer.size())) {
@@ -203,7 +206,7 @@ bool AudioPlayer::read_samples() {
 		return false;
 	}
 
-	if (!readMp3(mp3state, encodeBuffer, 0.25f)) {
+	if (!readMp3(mp3state, encodeBuffer, 0.7f)) {
 		mp3state = NULL;
 	}
 

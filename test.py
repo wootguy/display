@@ -29,6 +29,14 @@ def load_info_from_url(url):
 		
 		if type(title) == list:
 			title = title[-1]
+			
+		if best_stream is None:
+			best_stream = streams[0]
+			
+		if 'width' not in best_stream or 'height' not in best_stream:
+			# just assume this
+			best_stream['width'] = 160
+			best_stream['height'] = 90
 		
 		print(json.dumps(best_stream, sort_keys=True, indent=4))
 		return {'title': title, 'length': length, 'url': best_stream['url'], 'width': best_stream['width'], 'height': best_stream['height']}
@@ -84,26 +92,20 @@ if (len(sys.argv) == 1):
 	download_video('https://www.youtube.com/watch?v=zZdVwTjUtjg', maxWidth, maxHeight, 0)
 	sys.exit()
 
-vid_info = load_info_from_url(sys.argv[1])
+try:
+	vid_info = load_info_from_url(sys.argv[1])
+except Exception as e:
+	print(traceback.format_exc())
+	
+	print("---MEDIA_PLAYER_MM_ERROR_BEGINS---")
+	err_string = str(e).strip().replace('\n','. ').strip()
+	print(err_string)
+	sys.exit()
 
 print("---MEDIA_PLAYER_MM_INFO_BEGINS---")
 
-width = vid_info['width']
-height = vid_info['height']
-
-ratio = width / height
-inv_ratio = height / width
-	
-if width > maxWidth:
-	width = maxWidth
-	height = int(int(width* inv_ratio) / 2) * 2
-	
-if height > maxHeight:
-	height = maxHeight
-	width = int(int(height * ratio) / 2) * 2
-
-print("width=%s" % width)
-print("height=%s" % height)
+print("width=%s" % vid_info['width'])
+print("height=%s" % vid_info['height'])
 print("length=%s" % vid_info['length'])
-print("title=%s" % vid_info['title'])
+print("title=%s" % vid_info['title'].encode('utf-8', errors='ignore').decode("ascii", "ignore"))
 print("url=%s" % vid_info['url'])
