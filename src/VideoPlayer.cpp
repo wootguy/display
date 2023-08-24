@@ -55,25 +55,87 @@ VideoPlayer::~VideoPlayer() {
 }
 
 void VideoPlayer::init() {
-	m_disp = Display(Vector(0, 0, 0), Vector(0, 0, 0), display_cfg.width, display_cfg.height, 4, display_cfg.rgb);
+	m_disp = Display(&g_chunk_configs[2], true);
 
 	edict_t* disp_target = FIND_ENTITY_BY_TARGETNAME(NULL, "display_ori");
-	m_disp.orient(disp_target->v.origin, disp_target->v.angles);
 	m_disp.createChunks();
+	m_disp.orient(disp_target->v.origin, disp_target->v.angles, m_disp.scale);
 }
 
-void VideoPlayer::play(string url, float fps) {
+void VideoPlayer::play(string url) {
+	if (videoQueue.size() >= MAX_QUEUE) {
+		ClientPrintAll(HUD_PRINTTALK, "[Video] The queue is full!");
+		return;
+	}
+
+	canFastReplay = false;
 	loadVideoInfo(url);
+	lastUrl = url;
+}
+
+void VideoPlayer::skipVideo() {
+	if (videoQueue.size() == 0) {
+		ClientPrintAll(HUD_PRINTTALK, "[Video] Video stopped. The queue is empty.");
+		stopVideo();
+		return;
+	}
+	else {
+		ClientPrintAll(HUD_PRINTTALK, "[Video] Video skipped.");
+		stopVideo();
+		loadNextQueueVideo();
+	}
+}
+
+void VideoPlayer::loadNextQueueVideo() {
+	Video vid = videoQueue[0];
+	videoQueue.erase(videoQueue.begin());
+
+	m_python_output = vid.python_output;
+	loadNewVideo();
+	ClientPrintAll(HUD_PRINTNOTIFY, "[Video] Loading next video.\n");
+}
+
+void VideoPlayer::setMode(int bits, bool rgb, float fps) {
+	bool wasPlaying = m_video_playing || m_video_downloading || m_video_buffering;
+	this->wantFps = fps;
+
+	stopVideo();
+	if (bits > 0)
+		m_disp.setMode(bits, rgb);
+	canFastReplay = false;
+
+	if (wasPlaying) {
+		restartVideo();
+	}
+}
+
+void VideoPlayer::restartVideo() {
+	if (canFastReplay) {
+		ClientPrintAll(HUD_PRINTTALK, "[Video] Replaying last video\n");
+		m_disp.clear();
+		audio_player->stop();
+		m_video_playing = false;
+		m_video_buffering = false;
+		frameIdx = 0;
+
+		killChildProcess(decodePid);
+
+		playNewVideo(0);
+	}
+	else {
+		ClientPrintAll(HUD_PRINTNOTIFY, "[Video] Restreaming last video\n");
+		play(lastUrl);
+	}
 }
 
 void VideoPlayer::convertFrame() {
 	int w = m_disp.width;
 	int h = m_disp.height;
 	int channels = m_disp.chans;
-	int bits = display_cfg.bits;
+	int bits = m_disp.cfg->bits;
 
-	int chunkSizeX = display_cfg.chunk.chunkWidth;
-	int chunkSizeY = display_cfg.chunk.chunkHeight;
+	int chunkSizeX = m_disp.cfg->chunkWidth;
+	int chunkSizeY = m_disp.cfg->chunkHeight;
 
 	int cw = w / chunkSizeX;
 	int ch = h / chunkSizeY;
@@ -116,28 +178,20 @@ void VideoPlayer::convertFrame() {
 						if (px >= actualWidth || py >= actualHeight) {
 							continue;
 						}
-
-						if (bits == 3) {
-							int offset = (py * actualWidth + px) * sizeof(color24);
-
-							byte val = ((byte*)frameData)[offset + chan];
-
-							float step = 36.43;
-							int totalSteps = int((255.0 / step) + 0.5);
-							bool invalid = true;
-							int bestStep = 0;
-							float bestDiff = 999;
-
-							for (int k = 0; k < totalSteps; k++) {
-								float diff = abs((float)val - step * (k + 1));
-								if (diff < bestDiff) {
-									bestStep = k;
-									bestDiff = diff;
-								}
-							}
-
-							chunkValue |= m_disp.chunkBits[bestStep + 1] << numShifts;
+						
+						if (channels == 1) {
+							// greyscale
+							color24 color = frameData[py * actualWidth + px];
+							// some colors are brighter than others
+							byte val = (byte)(color.r*0.35f + color.g*0.40f + color.b*0.25f) >> (8 - bits);
+							chunkValue |= m_disp.cfg->chunkBits[val] << numShifts;
 						}
+						else {
+							int offset = (py * actualWidth + px) * sizeof(color24);
+							byte val = ((byte*)frameData)[offset + chan] >> (8 - bits);
+							chunkValue |= m_disp.cfg->chunkBits[val] << numShifts;
+						}
+						
 
 						pixelValue <<= 1;
 						numShifts += 1;
@@ -149,14 +203,21 @@ void VideoPlayer::convertFrame() {
 		}
 	}
 
-	m_disp.setLightValue(bdominance[0], bdominance[1], bdominance[2], bdominance[3]);
+	if (channels == 1) {
+		byte grey = (byte)(bdominance[0] * 0.35f + bdominance[1] * 0.40f + bdominance[2] * 0.25f);
+		m_disp.setLightValue(grey, grey, grey, grey);
+	}
+	else {
+		m_disp.setLightValue(bdominance[0], bdominance[1], bdominance[2], bdominance[3]);
+	}
+	
 }
 
 void VideoPlayer::readFfmpegOutput(int subpid) {
 	int bytesRead = 0;
 
 	float audioDelay = 0.15f; // time to slow down video to keep in sync with audio, which is buffered on the client
-	int desiredFrame = (audio_player->getPlaybackTime() - audioDelay) * m_disp.fps;
+	int desiredFrame = (audio_player->getPlaybackTime() - audioDelay) * actualFps;
 
 	if (desiredFrame < frameIdx) {
 		//println("wait for audio to catch up");
@@ -179,14 +240,22 @@ void VideoPlayer::readFfmpegOutput(int subpid) {
 
 		if (!m_video_downloading) {
 			println("Video finished playing at %d frames", frameIdx);
-			ClientPrintAll(HUD_PRINTNOTIFY, "Video finished.\n");
+			
 			m_disp.clear();
 			m_video_playing = false;
+
+			if (videoQueue.size()) {
+				loadNextQueueVideo();
+			}
+			else {
+				ClientPrintAll(HUD_PRINTNOTIFY, "[Video] finished.\n");
+			}
 		}
 		else {
 			m_video_buffering = true;
 			nextVideoPlay = g_engfuncs.pfnTime() + 2;
 			nextPlayOffset = frameIdx;
+			ClientPrintAll(HUD_PRINTNOTIFY, "[Video] buffering...\n");
 			println("Video buffering at frame %d...", frameIdx);
 		}
 	}
@@ -230,34 +299,72 @@ void VideoPlayer::monitorVideoDownloadProcess(int subpid) {
 	}
 }
 
-void VideoPlayer::loadNewVideo() {
-	stopVideo();
-	
-	remove(video_buffer_file);
-	remove(audio_buffer_file);
 
+void VideoPlayer::sizeToFit(int& width, int& height) {
+	int chunkW = m_disp.cfg->chunkWidth;
+	int chunkH = m_disp.cfg->chunkHeight;
+	
+	int bestWidth = chunkW;
+	int bestHeight = chunkH;
+
+	float ratio = (float)height / width;
+
+	println("Content size: %dx%d (%.2f aspect)", width, height, ratio);
+
+	while (true) {
+		int testWidth = bestWidth + chunkW;
+		int testHeight = (((int)(testWidth * ratio) / chunkH) * chunkH);
+
+		int numChunks = (testWidth / chunkW) * (testHeight / chunkH) * m_disp.chans;
+
+		if (numChunks > MAX_CHUNKS) {
+			break;
+		}
+
+		bestWidth = testWidth;
+		bestHeight = testHeight;
+	}
+
+	int numChunks = (bestWidth / chunkW) * (bestHeight / chunkH) * m_disp.chans;
+	println("Best dims: %dx%d (%d/%d chunks)", bestWidth, bestHeight, numChunks, MAX_CHUNKS);
+
+	string fpsString = UTIL_VarArgs("%d fps", actualFps);
+	if (actualFps < wantFps) {
+		fpsString += UTIL_VarArgs(" (%d unavailable)", wantFps);
+	}
+	ClientPrintAll(HUD_PRINTNOTIFY, UTIL_VarArgs("[Video] %d-bit %s, %dx%d pixels, %s\n", 
+		m_disp.cfg->bits, m_disp.rgb ? "color" : "greyscale", bestWidth, bestHeight, fpsString.c_str()));
+	
+	// resize display to fit this content
+	m_disp.resize(bestWidth, bestHeight);
+
+	// content should be resized to this (ffmpeg required multiple of 2 dimensions)
+	width = ((bestWidth + 1) / 2) * 2;
+	height = ((bestHeight + 1) / 2) * 2;
+}
+
+bool VideoPlayer::parsePythonOutput(string python_str, map<string, string>& outputMap) {
 	string header = "---MEDIA_PLAYER_MM_INFO_BEGINS---";
-	int outstart = m_python_output.find(header);
+	int outstart = python_str.find(header);
 	if (outstart == -1) {
 		string errorHeader = "---MEDIA_PLAYER_MM_ERROR_BEGINS---";
-		int errstart = m_python_output.find(errorHeader);
+		int errstart = python_str.find(errorHeader);
 
 		ClientPrintAll(HUD_PRINTTALK, "[Video] Failed to load:\n");
 		if (errstart != -1) {
-			string err = "  " + trimSpaces(m_python_output.substr(errstart + errorHeader.size())) + "\n";
-			ClientPrintAll(HUD_PRINTTALK, err.substr(0,255).c_str());
+			string err = "  " + trimSpaces(python_str.substr(errstart + errorHeader.size())) + "\n";
+			ClientPrintAll(HUD_PRINTTALK, err.substr(0, 255).c_str());
 		}
 		else {
 			ClientPrintAll(HUD_PRINTTALK, "(no reason given)\n");
 		}
 
-		return;
+		return false;
 	}
 
-	string output = trimSpaces(m_python_output.substr(outstart + header.size()));
+	string output = trimSpaces(python_str.substr(outstart + header.size()));
 
 	vector<string> settings = splitString(output, "\n");
-	map<string, string> keyvals;
 
 	for (int i = 0; i < settings.size(); i++) {
 		int firsteq = settings[i].find_first_of("=");
@@ -267,9 +374,23 @@ void VideoPlayer::loadNewVideo() {
 		string name = trimSpaces(settings[i].substr(0, firsteq));
 		string value = trimSpaces(settings[i].substr(firsteq + 1));
 
-		keyvals[name] = value;
+		outputMap[name] = value;
 
 		//println("%s = %s", name.c_str(), value.c_str());
+	}
+
+	return true;
+}
+
+void VideoPlayer::loadNewVideo() {
+	stopVideo();
+	
+	remove(video_buffer_file);
+	remove(audio_buffer_file);
+
+	map<string, string> keyvals;
+	if (!parsePythonOutput(m_python_output, keyvals)) {
+		return;
 	}
 
 	//println("URL IS %s", keyvals["url"].c_str());
@@ -277,32 +398,18 @@ void VideoPlayer::loadNewVideo() {
 	ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] %s\n", keyvals["title"].c_str()));
 
 	int offset = 0;
-	int fps = 15;
 	int width = atoi(keyvals["width"].c_str());
 	int height = atoi(keyvals["height"].c_str());
+	actualFps = Min(wantFps, atoi(keyvals["fps"].c_str()));
 	duration = atof(keyvals["length"].c_str());
 
-	float ratio = (float)width / height;
-	float inv_ratio = (float)height / width;
-
-	int maxWidth = display_cfg.width;
-	int maxHeight = display_cfg.height;
-
-	if (width > maxWidth) {
-		width = maxWidth;
-		height = ((int)(width * inv_ratio) / 2) * 2;
-	}
-
-	if (height > maxHeight) {
-		height = maxHeight;
-		width = ((int)(height * ratio) / 2) * 2;
-	}
+	sizeToFit(width, height);
 
 	actualWidth = width;
 	actualHeight = height;
 
 	string video_codec = UTIL_VarArgs("-c:v libx264 -preset veryfast -crf 18 -filter:v fps=%d -s %dx%d -tune fastdecode -map 0:v:0 %s",
-		fps, width, height, video_buffer_file);
+		actualFps, width, height, video_buffer_file);
 
 	
 	string loudnorm_filter = "-af loudnorm=I=-22:LRA=11:TP=-1.5";
@@ -329,6 +436,7 @@ void VideoPlayer::loadNewVideo() {
 		downloadStartTime = g_engfuncs.pfnTime();
 		m_video_downloading = true;
 		downloadPid = subpid;
+		canFastReplay = true;
 	}
 	else {
 		println("Failed to create child process");
@@ -350,7 +458,22 @@ void VideoPlayer::readPythonOutput(int subpid) {
 		}
 	}
 	else {
-		loadNewVideo();
+		if (m_video_playing || m_video_buffering) {
+			map<string, string> keyvals;
+			if (!parsePythonOutput(m_python_output, keyvals)) {
+				return;
+			}
+
+			Video vid;
+			vid.python_output = m_python_output;
+			vid.keyavlues = keyvals;
+			videoQueue.push_back(vid);
+			ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Queued (%d/%d): %s", videoQueue.size(), MAX_QUEUE, keyvals["title"].c_str()));
+		}
+		else {
+			loadNewVideo();
+		}
+		
 		m_python_output = "";
 		m_python_running = false;
 		pythonPid = 0;
@@ -382,7 +505,7 @@ void VideoPlayer::playNewVideo(int frameOffset) {
 	audio_player->playMp3(audio_buffer_file);
 
 	//int subpid = createChildProcess("ffmpeg -version");
-	float seekto = float(frameOffset) / m_disp.fps;
+	float seekto = float(frameOffset) / actualFps;
 	const char* cmd = UTIL_VarArgs("ffmpeg -threads 1 -hide_banner -loglevel error -i %s -ss %.2f -f rawvideo -pix_fmt rgb24 -", video_buffer_file, seekto);
 	println("%s", cmd);
 	int subpid = createChildProcess(cmd);
@@ -407,6 +530,7 @@ void VideoPlayer::stopVideo() {
 	m_video_playing = false;
 	m_video_buffering = false;
 	m_video_downloading = false;
+	nextVideoPlay = 0;
 
 	pythonPid = 0;
 	decodePid = 0;
@@ -424,6 +548,11 @@ void VideoPlayer::updateSpeakerIdx() {
 		}
 	}
 	audio_player->playerIdx = speakerIdx;
+}
+
+void VideoPlayer::unload() {
+	stopVideo();
+	displayCreated = false;
 }
 
 void VideoPlayer::think() {

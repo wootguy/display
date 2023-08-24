@@ -28,50 +28,149 @@ plugin_info_t Plugin_info = {
 
 VideoPlayer* g_video_player = NULL;
 
+float lastCommand = 0;
+EHandle g_host;
+
+bool commandCooldown(edict_t* plr) {
+	if (g_host.IsValid() && ENTINDEX(g_host.GetEdict()) != ENTINDEX(plr)) {
+		ClientPrint(plr, HUD_PRINTTALK, UTIL_VarArgs("[Video] %s must stop hosting before you can use this command.\n", STRING(g_host.GetEdict()->v.netname)));
+		return true;
+	}
+	if (g_engfuncs.pfnTime() - lastCommand < 2.0f) {
+		ClientPrint(plr, HUD_PRINTTALK, "[Video] Wait a second before using another command.\n");
+		return true;
+	}
+
+	lastCommand = g_engfuncs.pfnTime();
+	return false;
+}
+
 bool doCommand(edict_t* plr) {
 	CommandArgs args = CommandArgs();
 	args.loadArgs();
 	string lowerArg = toLowerCase(args.ArgV(0));
 
-    if (lowerArg == "t") {
-		println("TEST META PLAYER");
-
-		g_video_player->stopVideo();
-		g_video_player->playNewVideo(0);
-
-		/*
-		const char* command = "ffmpeg -i input.mp4 -f rawvideo -pix_fmt rgb24 - 2>/dev/null";
-
-		FILE* pipe = popen(command, "r");
-		if (!pipe) {
-			std::cerr << "Failed to open pipe for command: " << command << std::endl;
-			return 1;
+	if (lowerArg == ".host") {
+		if (g_host.IsValid()) {
+			if (ENTINDEX(g_host.GetEdict()) == ENTINDEX(plr)) {
+				ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] %s quit hosting.\n", STRING(plr->v.netname)));
+				g_host = EHandle();
+				return true;
+			}
+			else {
+				ClientPrint(plr, HUD_PRINTTALK, UTIL_VarArgs("[Video] %s must stop hosting first.\n", STRING(g_host.GetEdict()->v.netname)));
+				return true;
+			}
 		}
-		*/
-
-        return true;
-    }
-	if (lowerArg == "s") {
-		g_video_player->stopVideo();
+		else {
+			g_host = plr;
+			ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] %s is now the host.\n", STRING(plr->v.netname)));
+		}
 	}
-	if (lowerArg == "d") {
-		g_video_player->play("https://www.youtube.com/watch?v=zZdVwTjUtjg", 30);
+	if (lowerArg == ".stop") {
+		if (commandCooldown(plr)) { return true; }
+		g_video_player->stopVideo();
+		g_video_player->videoQueue.clear();
+		ClientPrintAll(HUD_PRINTTALK, "[Video] Stopped video and cleared queue.\n");
+	}
+	if (lowerArg == ".skip") {
+		if (commandCooldown(plr)) { return true; }
+		g_video_player->skipVideo();
+	}
+	if (lowerArg == ".queue") {
+		if (commandCooldown(plr)) { return true; }
+
+		if (g_video_player->videoQueue.size() == 0) {
+			ClientPrint(plr, HUD_PRINTTALK, "[Video] The queue is empty.\n");
+			return true;
+		}
+
+		ClientPrint(plr, HUD_PRINTTALK, "[Video] queue written to your console.\n");
+		ClientPrint(plr, HUD_PRINTCONSOLE, "---- Video queue\n");
+		for (int i = 0; i < g_video_player->videoQueue.size(); i++) {
+			string title = g_video_player->videoQueue[i].keyavlues["title"];
+			ClientPrint(plr, HUD_PRINTCONSOLE, UTIL_VarArgs("%d) %s\n", i+1, title.c_str()));
+		}
+		ClientPrint(plr, HUD_PRINTCONSOLE, "----\n");
+		return true;
+	}
+	if (lowerArg == ".mode") {
+		string arg = toLowerCase(args.ArgV(1));
+		if (arg.size() != 2 || !(arg[1] == 'g' || arg[1] == 'c') || !isdigit(arg[0])) {
+			ClientPrint(plr, HUD_PRINTTALK, "Usage: .mode [bits (1-8)][c/g]\n");
+			ClientPrint(plr, HUD_PRINTTALK, "   Ex: \".mode 4c\" = 4-bit color\n");
+			ClientPrint(plr, HUD_PRINTTALK, "   Ex: \".mode 7g\" = 7-bit greyscale\n");
+			return true;
+		}
+		bool rgb = arg[1] == 'c';
+		int bits = atoi(arg.substr(0).c_str());
+
+		if (bits < 1 || bits > 8) {
+			ClientPrint(plr, HUD_PRINTTALK, "Invalid bits. Choose 1-8.\n");
+			return true;
+		}
+
+		if (commandCooldown(plr)) { return true; }
+
+		ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Set display mode to %d-bit %s\n", bits, rgb ? "color" : "greyscale"));
+
+		g_video_player->setMode(bits, rgb, g_video_player->wantFps);
+	}
+	if (lowerArg == ".fps") {
+		string arg = toLowerCase(args.ArgV(1));
+		if (arg.size() != 2) {
+			ClientPrint(plr, HUD_PRINTTALK, "Usage: .fps [1-30]\n");
+			return true;
+		}
+		int fps = clamp(atoi(arg.substr(0).c_str()), 1, 30);
+
+		if (commandCooldown(plr)) { return true; }
+		ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Set display FPS to %d\n", fps));
+
+		g_video_player->setMode(0, 0, fps);
+		g_video_player->restartVideo();
+	}
+	if (lowerArg == ".replay") {
+		if (commandCooldown(plr)) { return true; }
+		g_video_player->restartVideo();
+	}
+	if (lowerArg == ".demo") {
+		//g_video_player->play("https://www.youtube.com/watch?v=zZdVwTjUtjg");
+		//g_video_player->play("https://www.youtube.com/shorts/JkjgK3zuvPI");
+
+		if (commandCooldown(plr)) { return true; }
+		ClientPrintAll(HUD_PRINTTALK, "[Video] Playing demo video\n");
+		g_video_player->setMode(2, false, 30);
+		g_video_player->play("https://www.youtube.com/watch?v=FtutLA63Cp8");
 	}
 
 	if (args.ArgV(0).find("http") == 0)
 	{
-		g_video_player->play(args.ArgV(0), 30);
+		if (commandCooldown(plr)) { return false; }
+		g_video_player->play(args.ArgV(0));
 		return false;
 	}
 
 	return false;
 }
 
-
+bool initDone = false;
 
 void StartFrame() {
     g_Scheduler.Think();
 	handleThreadPrints();
+
+	if (!initDone && gpGlobals->time > 2.0f) {
+		initDone = true;
+		for (int i = 0; i < 8; i++) {
+			g_chunk_configs[i].init();
+		}
+	}
+
+	if (g_host.IsValid() && (g_host.GetEdict()->v.deadflag != 0 || !isValidPlayer(g_host))) {
+		ClientPrintAll(HUD_PRINTTALK, "[Video] The host is gone.\n");
+		g_host = EHandle();
+	}
 
 	g_video_player->think();
 
@@ -84,14 +183,20 @@ void ClientCommand(edict_t* pEntity) {
 }
 
 void MapInit(edict_t* pEdictList, int edictCount, int maxClients) {
-	for (int i = 0; i < display_cfg.chunk.numChunkModels; i++)
-		PrecacheModel((display_cfg.chunk.chunk_path + g_quality + to_string(i) + ".mdl").c_str());
+	PrecacheModel("models/display/1bit/ld/0.mdl");
+	PrecacheModel("models/display/2bit/ld/0.mdl");
+	PrecacheModel("models/display/3bit/ld/0.mdl");
+	PrecacheModel("models/display/4bit/ld/0.mdl");
+	PrecacheModel("models/display/5bit/ld/0.mdl");
+	PrecacheModel("models/display/6bit/ld/0.mdl");
+	PrecacheModel("models/display/7bit/ld/0.mdl");
+	PrecacheModel("models/display/8bit/ld/0.mdl");
 
 	RETURN_META(MRES_IGNORED);
 }
 
 void MapChange() {
-	g_video_player->stopVideo();
+	g_video_player->unload();
 	RETURN_META(MRES_IGNORED);
 }
 

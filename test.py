@@ -15,13 +15,19 @@ def load_info_from_url(url):
 		
 		best_stream = None
 		if len(streams):
+			best_fps = 1
+			for stream in streams:
+				if stream['fps'] >= best_fps:
+					best_fps = stream['fps']
+			best_fps = min(best_fps, 30)
+		
 			lowest_rez = 99999999
 			for stream in streams:
 				if stream['width'] is None:
 					continue
 				#print(json.dumps(stream, sort_keys=True, indent=4))
 				rez = stream['width']*stream['height']
-				if rez < lowest_rez and stream['fps'] >= 15:
+				if rez < lowest_rez and stream['fps'] >= best_fps:
 					lowest_rez = rez
 					best_stream = stream
 		elif len(formats):
@@ -39,7 +45,7 @@ def load_info_from_url(url):
 			best_stream['height'] = 90
 		
 		print(json.dumps(best_stream, sort_keys=True, indent=4))
-		return {'title': title, 'length': length, 'url': best_stream['url'], 'width': best_stream['width'], 'height': best_stream['height']}
+		return {'title': title, 'length': length, 'url': best_stream['url'], 'width': best_stream['width'], 'height': best_stream['height'], 'fps': best_stream['fps']}
 
 def download_video(url, maxWidth, maxHeight, offset):
 	try:		
@@ -107,5 +113,6 @@ print("---MEDIA_PLAYER_MM_INFO_BEGINS---")
 print("width=%s" % vid_info['width'])
 print("height=%s" % vid_info['height'])
 print("length=%s" % vid_info['length'])
+print("fps=%s" % vid_info['fps'])
 print("title=%s" % vid_info['title'].encode('utf-8', errors='ignore').decode("ascii", "ignore"))
 print("url=%s" % vid_info['url'])

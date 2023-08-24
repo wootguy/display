@@ -6,8 +6,20 @@
 
 using namespace std;
 
+#define MAX_QUEUE 8
+
+struct Video {
+	string python_output;
+	map<string, string> keyavlues;
+};
+
 class VideoPlayer {
 public:
+	Display m_disp;
+	int wantFps = 15;
+	string lastUrl;
+
+	vector<Video> videoQueue;
 
 	VideoPlayer();
 	~VideoPlayer();
@@ -16,16 +28,25 @@ public:
 
 	void init();
 
-	void play(std::string url, float fps);
+	void play(std::string url);
 
 	void stopVideo();
+
+	void setMode(int bits, bool rgb, float fps);
+
+	void restartVideo();
+
+	void skipVideo();
+
+	void loadNextQueueVideo();
 
 	void think();
 
 	void playNewVideo(int frameOffset);
 
+	void unload();
+
 private:
-	Display m_disp;
 	bool displayCreated = false;
 
 	bool m_python_running = false;
@@ -48,6 +69,9 @@ private:
 
 	int frameIdx = 0;
 
+	int actualFps = 15;
+	bool canFastReplay = false;
+
 	float nextVideoPlay = 0;
 	int nextPlayOffset = 0;
 
@@ -65,4 +89,10 @@ private:
 	void loadVideoInfo(std::string url);
 
 	void updateSpeakerIdx();
+
+	bool parsePythonOutput(string python_str, map<string, string>& outputMap);
+
+	// find the best display resolution to fit the content
+	// input is actual video size, which is scaled to the max supported by the display
+	void sizeToFit(int& width, int& height);
 };
