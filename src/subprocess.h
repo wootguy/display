@@ -6,7 +6,7 @@ uint32_t createChildProcess(const char* command);
 
 // read data from process output
 // returns false on failure
-bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int& bytesRead);
+bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int& bytesRead, bool block=false);
 
 bool isProcessAlive(int subpid);
 

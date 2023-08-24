@@ -20,6 +20,7 @@ public:
 	string lastUrl;
 	AudioPlayer* audio_player;
 	bool paused;
+	float syncDelay = 0.35f; // time to delay video to keep in sync with audio
 
 	vector<Video> videoQueue;
 
@@ -67,6 +68,10 @@ private:
 	int actualWidth = 42;
 	int actualHeight = 22;
 
+	int resizeBufferW = 0;
+	int resizeBufferH = 0;
+	color24* resizedFrameData = NULL;
+
 	uint32_t pythonPid = 0;
 	uint32_t decodePid = 0;
 	uint32_t downloadPid = 0;
@@ -100,5 +105,5 @@ private:
 
 	// find the best display resolution to fit the content
 	// input is actual video size, which is scaled to the max supported by the display
-	void sizeToFit(int& width, int& height);
+	void sizeToFit(int width, int height);
 };

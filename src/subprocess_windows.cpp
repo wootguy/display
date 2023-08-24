@@ -141,7 +141,7 @@ int peekChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted) {
 // Read output from the child process's pipe for STDOUT
 // and write to the parent process's pipe for STDOUT. 
 // Stop when there is no more data.
-bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int& bytesRead)
+bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int& bytesRead, bool block)
 {
     ProcessData* pdata = findSubprocess(subpid);
     if (!pdata) {
@@ -149,15 +149,24 @@ bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int
         return false;
     }
 
-    if (peekChildProcessStdout(subpid, outputBuffer, bytesWanted) == 0) {
-        return false;
+    bytesRead = 0;
+    while (bytesWanted) {
+        if (!block && peekChildProcessStdout(subpid, outputBuffer + bytesRead, bytesWanted) == 0) {
+            return false;
+        }
+
+        DWORD dwRead;
+        if (!ReadFile(pdata->hStd_OUT_Rd, outputBuffer + bytesRead, bytesWanted, &dwRead, NULL)) {
+            println("Read file error %d", (int)GetLastError());
+            return false;
+        }
+        
+        bytesRead += dwRead;
+        bytesWanted -= dwRead;
     }
+    
 
-    DWORD dwRead;
-    BOOL bSuccess = ReadFile(pdata->hStd_OUT_Rd, outputBuffer, bytesWanted, &dwRead, NULL);
-    bytesRead = dwRead;
-
-    return bSuccess;
+    return true;
 }
 
 bool killChildProcess(int subpid) {

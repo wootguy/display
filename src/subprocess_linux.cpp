@@ -98,7 +98,7 @@ bool isProcessAlive(int subpid) {
 }
 
 
-bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int& bytesRead)
+bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int& bytesRead, bool block)
 {
 	ProcessData* pdata = findSubprocess(subpid);
 	if (!pdata) {
@@ -106,14 +106,30 @@ bool readChildProcessStdout(int subpid, char* outputBuffer, int bytesWanted, int
 		return false;
 	}
 
-	ssize_t nRead = read(pdata->hStd_OUT_Rd, outputBuffer, bytesWanted);
-	if (nRead == -1) {
-		//perror("read");
-		bytesRead = 0;
-		return false;
-	}
+	ssize_t nRead = 0;
+	bytesRead = 0;
+	
+	while (bytesWanted) {
+		nRead = read(pdata->hStd_OUT_Rd, outputBuffer + bytesRead, bytesWanted);
 
-	bytesRead = nRead;
+		if (nRead <= 0 && !block) {
+			return false;
+		}
+
+		if (nRead == -1 && errno != EWOULDBLOCK && errno != EAGAIN) {
+			//perror("read");
+			return false;
+		}
+		
+		if (nRead > 0) {
+			bytesRead += nRead;
+			bytesWanted -= nRead;
+		}
+		
+		if (block && nRead == 0 && !isProcessAlive(subpid)) {
+			return false;
+		}
+	}
 
 	return false;
 }

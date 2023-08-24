@@ -4,6 +4,8 @@
 #include "AudioPlayer.h"
 #include "Display.h"
 #include "subprocess.h"
+#include "lodepng.h"
+#include <base_resample.h>
 
 using namespace std;
 
@@ -11,7 +13,7 @@ using namespace std;
 
 const char* video_buffer_file = "svencoop_addon/scripts/maps/display/video.mkv";
 const char* audio_buffer_file = "svencoop_addon/scripts/maps/display/audio.mp3";
-const char* python_script_path = "svencoop_addon/scripts/maps/display/test.py";
+const char* python_script_path = "svencoop_addon/scripts/maps/display/vid_info.py";
 
 #ifdef WIN32
 const char* python_program = "python";
@@ -33,9 +35,7 @@ long filesize(const char* filename)
 
 VideoPlayer::VideoPlayer() {
 	audio_player = new AudioPlayer(1);
-
-	frameData = new color24[MAX_DISPLAY_PIXELS * 3];
-	memset(frameData, 0, MAX_DISPLAY_PIXELS * 3 * sizeof(color24));
+	frameData = NULL;
 }
 
 VideoPlayer::~VideoPlayer() {
@@ -88,6 +88,19 @@ void VideoPlayer::init() {
 }
 
 void VideoPlayer::play(string url) {
+	// prevent command injection
+	url = replaceString(url, "'", "");
+	url = replaceString(url, "\"", "");
+	url = replaceString(url, " ", "%20");
+	url = replaceString(url, "\t", "");
+	url = replaceString(url, "\n", "");
+	url = replaceString(url, ";", "");
+	url = replaceString(url, "|", "");
+	url = replaceString(url, "$", "");
+	url = replaceString(url, "(", "");
+	url = replaceString(url, ")", "");
+	url = replaceString(url, "`", "");
+		
 	if (videoQueue.size() >= MAX_QUEUE) {
 		ClientPrintAll(HUD_PRINTTALK, "[Video] The queue is full!");
 		return;
@@ -126,15 +139,20 @@ void VideoPlayer::loadNextQueueVideo() {
 
 void VideoPlayer::setMode(int bits, bool rgb, float fps) {
 	bool wasPlaying = m_video_playing || m_video_downloading || m_video_buffering;
+	
+	if (this->wantFps != fps) {
+		stopVideo();
+		canFastReplay = false;
+
+		if (wasPlaying) {
+			restartVideo();
+		}
+	}
 	this->wantFps = fps;
-
-	stopVideo();
-	if (bits > 0)
+	
+	if (bits > 0) {
 		m_disp.setMode(bits, rgb);
-	canFastReplay = false;
-
-	if (wasPlaying) {
-		restartVideo();
+		sizeToFit(actualWidth, actualHeight);
 	}
 }
 
@@ -163,6 +181,18 @@ void VideoPlayer::convertFrame() {
 	int channels = m_disp.chans;
 	int bits = m_disp.cfg->bits;
 
+	if (!resizedFrameData || resizeBufferW != w || resizeBufferH != h) {
+		if (resizedFrameData) {
+			delete[] resizedFrameData;
+		}
+		resizedFrameData = new color24[w * h];
+		resizeBufferW = w;
+		resizeBufferH = h;
+	}
+
+	base::ResampleImage24((byte*)frameData, actualWidth, actualHeight, (byte*)resizedFrameData, w, h,
+		base::KernelType::KernelTypeLanczos2);
+
 	int chunkSizeX = m_disp.cfg->chunkWidth;
 	int chunkSizeY = m_disp.cfg->chunkHeight;
 
@@ -176,11 +206,11 @@ void VideoPlayer::convertFrame() {
 	uint32_t bdominance[4];
 	for (int py = 0; py < h; py++) {
 		for (int px = 0; px < w; px++) {
-			int offset = py * actualWidth + px;
+			int offset = py * w + px;
 
-			byte r = frameData[offset].r;
-			byte g = frameData[offset].g;
-			byte b = frameData[offset].b;
+			byte r = resizedFrameData[offset].r;
+			byte g = resizedFrameData[offset].g;
+			byte b = resizedFrameData[offset].b;
 			dominance[0] += r;
 			dominance[1] += g;
 			dominance[2] += b;
@@ -204,20 +234,20 @@ void VideoPlayer::convertFrame() {
 						int px = cx * chunkSizeX + x;
 						int py = cy * chunkSizeY + y;
 
-						if (px >= actualWidth || py >= actualHeight) {
+						if (px >= w || py >= h) {
 							continue;
 						}
 						
 						if (channels == 1) {
 							// greyscale
-							color24 color = frameData[py * actualWidth + px];
+							color24 color = resizedFrameData[py * w + px];
 							// some colors are brighter than others
 							byte val = (byte)(color.r*0.35f + color.g*0.40f + color.b*0.25f) >> (8 - bits);
 							chunkValue |= m_disp.cfg->chunkBits[val] << numShifts;
 						}
 						else {
-							int offset = (py * actualWidth + px) * sizeof(color24);
-							byte val = ((byte*)frameData)[offset + chan] >> (8 - bits);
+							int offset = (py * w + px) * sizeof(color24);
+							byte val = ((byte*)resizedFrameData)[offset + chan] >> (8 - bits);
 							chunkValue |= m_disp.cfg->chunkBits[val] << numShifts;
 						}
 						
@@ -239,14 +269,12 @@ void VideoPlayer::convertFrame() {
 	else {
 		m_disp.setLightValue(bdominance[0], bdominance[1], bdominance[2], bdominance[3]);
 	}
-	
 }
 
 void VideoPlayer::readFfmpegOutput(int subpid) {
 	int bytesRead = 0;
 
-	float audioDelay = 0.15f; // time to slow down video to keep in sync with audio, which is buffered on the client
-	int desiredFrame = (audio_player->getPlaybackTime() - audioDelay) * actualFps;
+	int desiredFrame = ((float)audio_player->getPlaybackTime()*0.001f - syncDelay) * actualFps;
 
 	if (desiredFrame < frameIdx) {
 		//println("wait for audio to catch up");
@@ -255,11 +283,25 @@ void VideoPlayer::readFfmpegOutput(int subpid) {
 
 	int wantBytes = actualWidth * actualHeight * sizeof(color24);
 
-	readChildProcessStdout(subpid, (char*)frameData, wantBytes, bytesRead);
+	readChildProcessStdout(subpid, (char*)frameData, wantBytes, bytesRead, true);
 
 	if (bytesRead > 0 || isProcessAlive(subpid)) {
 		if (wantBytes == bytesRead) {
 			convertFrame();
+		}
+		else {
+			println("READ %d / %d", bytesRead, wantBytes);
+		}
+
+		if (frameIdx == actualFps / 2) {
+			println("Reset mic audio");
+			// reset mic audio to prevent sync issues
+			for (int i = 1; i <= gpGlobals->maxClients; i++) {
+				edict_t* plr = INDEXENT(i);
+				if (isValidPlayer(plr)) {
+					clientCommand(plr, "stopsound");
+				}
+			}
 		}
 
 		frameIdx++;
@@ -298,7 +340,7 @@ void VideoPlayer::monitorVideoDownloadProcess(int subpid) {
 
 	if (bytesRead > 0 || isProcessAlive(subpid)) {
 		if (bytesRead > 0) {
-			//printp("%s", output.c_str());
+			printp("%s", string(buffer, 512).c_str());
 		}
 	}
 	else {
@@ -328,8 +370,7 @@ void VideoPlayer::monitorVideoDownloadProcess(int subpid) {
 	}
 }
 
-
-void VideoPlayer::sizeToFit(int& width, int& height) {
+void VideoPlayer::sizeToFit(int width, int height) {
 	int chunkW = m_disp.cfg->chunkWidth;
 	int chunkH = m_disp.cfg->chunkHeight;
 	
@@ -366,10 +407,6 @@ void VideoPlayer::sizeToFit(int& width, int& height) {
 	
 	// resize display to fit this content
 	m_disp.resize(bestWidth, bestHeight);
-
-	// content should be resized to this (ffmpeg required multiple of 2 dimensions)
-	width = ((bestWidth + 1) / 2) * 2;
-	height = ((bestHeight + 1) / 2) * 2;
 }
 
 bool VideoPlayer::parsePythonOutput(string python_str, map<string, string>& outputMap) {
@@ -434,13 +471,24 @@ void VideoPlayer::loadNewVideo() {
 
 	sizeToFit(width, height);
 
+	// resize to be roughly double the max size the display can support, for better quality downscaling
+	if (width > 200) {
+		float ratio = (float)height / width;
+		width = 200;
+		height = ((int)(width * ratio) / 2) * 2;
+	}
+
 	actualWidth = width;
 	actualHeight = height;
+
+	if (frameData) {
+		delete[] frameData;
+	}
+	frameData = new color24[actualWidth * actualHeight];
 
 	string video_codec = UTIL_VarArgs("-c:v libx264 -preset veryfast -crf 18 -filter:v fps=%d -s %dx%d -tune fastdecode -map 0:v:0 %s",
 		actualFps, width, height, video_buffer_file);
 
-	
 	string loudnorm_filter = "-af loudnorm=I=-22:LRA=11:TP=-1.5";
 	string audio_codec = "-c:a libmp3lame -q:a 6 -ar 12000 " + loudnorm_filter + " -map 0:a:0 " + audio_buffer_file;
 
@@ -491,17 +539,15 @@ void VideoPlayer::readPythonOutput(int subpid) {
 		}
 	}
 	else {
-		if (m_video_playing || m_video_buffering) {
+		if (m_video_playing || m_video_buffering || m_video_downloading) {
 			map<string, string> keyvals;
-			if (!parsePythonOutput(m_python_output, keyvals)) {
-				return;
+			if (parsePythonOutput(m_python_output, keyvals)) {
+				Video vid;
+				vid.python_output = m_python_output;
+				vid.keyavlues = keyvals;
+				videoQueue.push_back(vid);
+				ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Queued (%d/%d): %s", videoQueue.size(), MAX_QUEUE, keyvals["title"].c_str()));
 			}
-
-			Video vid;
-			vid.python_output = m_python_output;
-			vid.keyavlues = keyvals;
-			videoQueue.push_back(vid);
-			ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Queued (%d/%d): %s", videoQueue.size(), MAX_QUEUE, keyvals["title"].c_str()));
 		}
 		else {
 			loadNewVideo();
@@ -516,6 +562,12 @@ void VideoPlayer::readPythonOutput(int subpid) {
 void VideoPlayer::loadVideoInfo(string url) {
 	m_python_output = "";
 	m_python_running = true;
+
+#ifdef WIN32
+	url = "\"" + url + "\"";
+#else
+	url = "'" + url + "'";
+#endif
 
 	const char* cmd = UTIL_VarArgs("%s %s %s", python_program, python_script_path, url.c_str());
 	println(cmd);
