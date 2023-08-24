@@ -42,6 +42,7 @@ public:
 	Vector pos, angles;
 	EHandle background;
 	ChunkModelConfig* cfg;
+	bool dlight = true;
 
 	Vector up, right, forward;
 

@@ -30,6 +30,7 @@ VideoPlayer* g_video_player = NULL;
 
 float lastCommand = 0;
 EHandle g_host;
+bool g_enabled = true;
 
 bool commandCooldown(edict_t* plr) {
 	if (g_host.IsValid() && ENTINDEX(g_host.GetEdict()) != ENTINDEX(plr)) {
@@ -76,6 +77,35 @@ bool doCommand(edict_t* plr) {
 	if (lowerArg == ".skip") {
 		if (commandCooldown(plr)) { return true; }
 		g_video_player->skipVideo();
+	}
+/*
+	if (lowerArg == ".pause") {
+		if (commandCooldown(plr)) { return true; }
+		g_video_player->pause();
+	}
+*/
+	if (lowerArg == ".dlight") {
+		if (commandCooldown(plr)) { return true; }
+		g_video_player->m_disp.dlight = !g_video_player->m_disp.dlight;
+		if (g_video_player->m_disp.dlight)
+			ClientPrintAll(HUD_PRINTTALK, "[Video] Dynamic light enabled.\n");
+		else
+			ClientPrintAll(HUD_PRINTTALK, "[Video] Dynamic light disabled.\n");
+	}
+	if (lowerArg == ".reliable") {
+		uint32_t plrBit = 1 << (ENTINDEX(plr) & 31);
+		bool wasReliable = g_video_player->audio_player->reliableMode & plrBit;
+
+		if (wasReliable) {
+			ClientPrint(plr, HUD_PRINTTALK, "[Video] Reliable audio packets disabled.\n");
+			g_video_player->audio_player->reliableMode &= ~plrBit;
+		}
+		else {
+			ClientPrint(plr, HUD_PRINTTALK, "[Video] Reliable audio packets enabled.\n");
+			g_video_player->audio_player->reliableMode |= plrBit;
+		}
+
+		return true;
 	}
 	if (lowerArg == ".queue") {
 		if (commandCooldown(plr)) { return true; }
@@ -140,6 +170,7 @@ bool doCommand(edict_t* plr) {
 
 		if (commandCooldown(plr)) { return true; }
 		ClientPrintAll(HUD_PRINTTALK, "[Video] Playing demo video\n");
+
 		g_video_player->setMode(2, false, 30);
 		g_video_player->play("https://www.youtube.com/watch?v=FtutLA63Cp8");
 	}
@@ -157,6 +188,10 @@ bool doCommand(edict_t* plr) {
 bool initDone = false;
 
 void StartFrame() {
+	if (!g_enabled) {
+		RETURN_META(MRES_IGNORED);
+	}
+
     g_Scheduler.Think();
 	handleThreadPrints();
 
@@ -177,12 +212,28 @@ void StartFrame() {
     RETURN_META(MRES_IGNORED);
 }
 
+void ClientJoin(edict_t* plr) {
+	uint32_t plrBit = 1 << (ENTINDEX(plr) & 31);
+	g_video_player->audio_player->reliableMode &= ~plrBit;
+
+	RETURN_META(MRES_IGNORED);
+}
+
 void ClientCommand(edict_t* pEntity) {
+	if (!g_enabled) {
+		RETURN_META(MRES_IGNORED);
+	}
+
 	META_RES ret = doCommand(pEntity) ? MRES_SUPERCEDE : MRES_IGNORED;
 	RETURN_META(ret);
 }
 
 void MapInit(edict_t* pEdictList, int edictCount, int maxClients) {
+	g_enabled = string(STRING(gpGlobals->mapname)).find("cinema") == 0;
+	if (!g_enabled) {
+		RETURN_META(MRES_IGNORED);
+	}
+
 	PrecacheModel("models/display/1bit/ld/0.mdl");
 	PrecacheModel("models/display/2bit/ld/0.mdl");
 	PrecacheModel("models/display/3bit/ld/0.mdl");
@@ -191,6 +242,7 @@ void MapInit(edict_t* pEdictList, int edictCount, int maxClients) {
 	PrecacheModel("models/display/6bit/ld/0.mdl");
 	PrecacheModel("models/display/7bit/ld/0.mdl");
 	PrecacheModel("models/display/8bit/ld/0.mdl");
+	PrecacheModel("sprites/cinema/loading.spr");
 
 	RETURN_META(MRES_IGNORED);
 }
@@ -205,12 +257,16 @@ void PluginInit() {
 	g_dll_hooks.pfnClientCommand = ClientCommand;
 	g_dll_hooks.pfnServerActivate = MapInit;
 	g_dll_hooks.pfnServerDeactivate = MapChange;
+	g_dll_hooks.pfnClientPutInServer = ClientJoin;
 
 	g_main_thread_id = std::this_thread::get_id();
 
 	crc32_init();
 
 	g_video_player = new VideoPlayer();
+
+	if (gpGlobals->time > 2.0f)
+		g_enabled = string(STRING(gpGlobals->mapname)).find("cinema") == 0;
 }
 
 void PluginExit() {

@@ -217,7 +217,6 @@ void Display::createChunks() {
 		ckeys["model"] = cfg->chunk_path + g_quality + "0.mdl";
 		ckeys["movetype"] = "5";
 		ckeys["scale"] = to_string(scale);
-		ckeys["targetname"] = "display_sprite";
 		ckeys["angles"] = vecToString(angles + Vector(0, 180, 0));
 		ckeys["rendermode"] = "0";
 		ckeys["renderamt"] = "85";
@@ -266,7 +265,7 @@ void Display::setChunkValue(int x, int y, int chan, uint32_t value) {
 	ent->pev->frame = frameIdx;
 }
 
-void Display::setLightValue(int r, int g, int b, int a) {	
+void Display::setLightValue(int r, int g, int b, int a) {
 	float sum = (r + g + b);
 	if (sum == 0)
 		sum = 1;
@@ -280,8 +279,10 @@ void Display::setLightValue(int r, int g, int b, int a) {
 		bgent->pev->rendercolor = Vector(r, g, b);
 	}
 
-	Vector lightPos = pos + forward * scale * -256 + right * scale * width * 0.5f + up * scale * height * -0.5f;
-	te_dlight(lightPos, 96, lightColor, 1, 0); // 0 causes too much flickering, 2 is too delayed
+	if (dlight) {
+		Vector lightPos = pos + forward * -700;
+		te_dlight(lightPos, 64, lightColor, 1, 0); // 0 causes too much flickering, 2 is too delayed
+	}
 }
 
 void Display::destroy() {

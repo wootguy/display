@@ -45,6 +45,8 @@ VideoPlayer::~VideoPlayer() {
 	killAllChildren();
 	m_disp.destroy();
 
+	REMOVE_ENTITY(loadingSpr);
+
 	for (int i = 0; i < MAX_PLAYERS; i++) {
 		audio_player->exitSignal = true;
 	}
@@ -55,11 +57,34 @@ VideoPlayer::~VideoPlayer() {
 }
 
 void VideoPlayer::init() {
-	m_disp = Display(&g_chunk_configs[2], true);
+	m_disp = Display(&g_chunk_configs[4], false);
 
 	edict_t* disp_target = FIND_ENTITY_BY_TARGETNAME(NULL, "display_ori");
 	m_disp.createChunks();
 	m_disp.orient(disp_target->v.origin, disp_target->v.angles, m_disp.scale);
+
+	edict_t* ent = NULL;
+	do {
+		ent = FIND_ENTITY_BY_TARGETNAME(ent, "cinema_audio");
+		if (isValidFindEnt(ent)) {
+			audio_areas.push_back(ent);
+		}
+	} while (isValidFindEnt(ent));
+
+	println("Found %d areas", audio_areas.size());
+
+	map<string, string> ckeys;
+	ckeys["model"] = "sprites/cinema/loading.spr";
+	ckeys["scale"] = "0.5";
+	ckeys["angles"] = "0 0 0";
+	ckeys["origin"] = vecToString(m_disp.pos + m_disp.forward*-4);
+	ckeys["vp_type"] = "4";
+	ckeys["renderamt"] = "0";
+	ckeys["rendermode"] = "1";
+	ckeys["framerate"] = "10";
+	ckeys["spawnflags"] = "1";
+
+	loadingSpr = CreateEntity("env_sprite", ckeys, true);
 }
 
 void VideoPlayer::play(string url) {
@@ -71,6 +96,10 @@ void VideoPlayer::play(string url) {
 	canFastReplay = false;
 	loadVideoInfo(url);
 	lastUrl = url;
+}
+
+void VideoPlayer::pause() {
+	paused = !paused;
 }
 
 void VideoPlayer::skipVideo() {
@@ -254,7 +283,7 @@ void VideoPlayer::readFfmpegOutput(int subpid) {
 		else {
 			m_video_buffering = true;
 			nextVideoPlay = g_engfuncs.pfnTime() + 2;
-			nextPlayOffset = frameIdx;
+			nextPlayOffset = 0;
 			ClientPrintAll(HUD_PRINTNOTIFY, "[Video] buffering...\n");
 			println("Video buffering at frame %d...", frameIdx);
 		}
@@ -437,6 +466,10 @@ void VideoPlayer::loadNewVideo() {
 		m_video_downloading = true;
 		downloadPid = subpid;
 		canFastReplay = true;
+
+		if (loadingSpr.IsValid()) {
+			loadingSpr.GetEdict()->v.renderamt = 255;
+		}
 	}
 	else {
 		println("Failed to create child process");
@@ -516,6 +549,10 @@ void VideoPlayer::playNewVideo(int frameOffset) {
 		decodePid = subpid;
 		frameIdx = frameOffset;
 		readFfmpegOutput(subpid);
+
+		if (loadingSpr.IsValid()) {
+			loadingSpr.GetEdict()->v.renderamt = 0;
+		}
 	}
 	else {
 		println("Failed to create child process");
@@ -525,17 +562,23 @@ void VideoPlayer::playNewVideo(int frameOffset) {
 void VideoPlayer::stopVideo() {
 	println("Stopping video");
 	killAllChildren();
-	m_disp.clear();
+	if (displayCreated)
+		m_disp.clear();
 	audio_player->stop();
 	m_video_playing = false;
 	m_video_buffering = false;
 	m_video_downloading = false;
+	paused = false;
+	
 	nextVideoPlay = 0;
-
 	pythonPid = 0;
 	decodePid = 0;
 	downloadPid = 0;
 	frameIdx = 0;
+
+	if (loadingSpr.IsValid()) {
+		loadingSpr.GetEdict()->v.renderamt = 0;
+	}
 }
 
 void VideoPlayer::updateSpeakerIdx() {
@@ -551,8 +594,9 @@ void VideoPlayer::updateSpeakerIdx() {
 }
 
 void VideoPlayer::unload() {
-	stopVideo();
 	displayCreated = false;
+	videoQueue.clear();
+	stopVideo();
 }
 
 void VideoPlayer::think() {
@@ -571,15 +615,51 @@ void VideoPlayer::think() {
 		monitorVideoDownloadProcess(downloadPid);
 	}
 	if (decodePid != 0) {
-		readFfmpegOutput(decodePid);
+		if (!paused)
+			readFfmpegOutput(decodePid);
 	}
 	if (nextVideoPlay && nextVideoPlay < g_engfuncs.pfnTime()) {
 		nextVideoPlay = 0;
 		playNewVideo(0);
 	}
-	updateSpeakerIdx();
+	updateSpeakerIdx();	
 
-	audio_player->play_samples();
+	if (!paused)
+		audio_player->play_samples();
+
+	for (int i = 1; i <= gpGlobals->maxClients; i++) {
+		edict_t* plr = INDEXENT(i);
+		
+		if (!isValidPlayer(plr)) {
+			continue;
+		}
+
+		bool inAudibleArea = false;
+		Vector ori = plr->v.origin;
+		for (int k = 0; k < audio_areas.size(); k++) {
+			edict_t* area = audio_areas[k];
+			if (!area) {
+				continue;
+			}
+			
+			Vector mins = area->v.absmin;
+			Vector maxs = area->v.absmax;
+			if (ori.x > mins.x && ori.x < maxs.x 
+				&& ori.y > mins.y && ori.y < maxs.y
+				&& ori.z > mins.z && ori.z < maxs.z) {
+				inAudibleArea = true;
+				break;
+			}
+		}
+
+		uint32_t plrBit = 1 << (i & 31);
+		if (inAudibleArea) {
+			audio_player->listeners |= plrBit;
+		}
+		else {
+			audio_player->listeners &= ~plrBit;
+		}
+	}
 
 	string err;
 	if (audio_player->errors.dequeue(err)) {
