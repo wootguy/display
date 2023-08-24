@@ -16,8 +16,10 @@ struct Video {
 class VideoPlayer {
 public:
 	Display m_disp;
-	int wantFps = 15;
+	int wantFps = 30;
 	string lastUrl;
+	AudioPlayer* audio_player;
+	bool paused;
 
 	vector<Video> videoQueue;
 
@@ -46,7 +48,11 @@ public:
 
 	void unload();
 
+	void pause();
+
 private:
+	EHandle loadingSpr;
+
 	bool displayCreated = false;
 
 	bool m_python_running = false;
@@ -55,8 +61,6 @@ private:
 	bool m_video_downloading = false;
 	bool m_video_playing = false;
 	bool m_video_buffering = false;
-
-	AudioPlayer* audio_player;
 
 	color24* frameData = NULL;
 
@@ -77,6 +81,8 @@ private:
 
 	float downloadStartTime = 0;
 	float duration = 0;
+
+	vector<EHandle> audio_areas;
 
 	void convertFrame();
 
