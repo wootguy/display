@@ -173,6 +173,9 @@ bool doCommand(edict_t* plr) {
 
 		g_video_player->syncDelay = (float)sync * 0.001f;
 	}
+	if (lowerArg == ".radio") {
+		ClientPrintAll(HUD_PRINTTALK, "[Video] The radio plugin is disabled on this map.\n");
+	}
 	if (lowerArg == ".replay") {
 		if (commandCooldown(plr)) { return true; }
 		g_video_player->restartVideo();
@@ -188,7 +191,7 @@ bool doCommand(edict_t* plr) {
 		g_video_player->play("https://www.youtube.com/watch?v=FtutLA63Cp8");
 	}
 
-	if (args.ArgV(0).find("http") == 0)
+	if (args.ArgV(0).find("http://") == 0 || args.ArgV(0).find("https://") == 0)
 	{
 		if (commandCooldown(plr)) { return false; }
 		g_video_player->play(args.ArgV(0));
@@ -199,6 +202,7 @@ bool doCommand(edict_t* plr) {
 }
 
 bool initDone = false;
+bool radioPaused = false;
 
 void StartFrame() {
 	if (!g_enabled) {
@@ -213,6 +217,14 @@ void StartFrame() {
 		for (int i = 0; i < 8; i++) {
 			g_chunk_configs[i].init();
 		}
+	}
+	if (!radioPaused && gpGlobals->time > 2.0f) {
+		radioPaused = true;
+
+		// prevent conflicts with chat urls and audio
+		// it will unpause itself on map change
+		g_engfuncs.pfnServerCommand("meta pause radio\n");
+		g_engfuncs.pfnServerExecute();
 	}
 
 	if (g_host.IsValid() && (g_host.GetEdict()->v.deadflag != 0 || !isValidPlayer(g_host))) {
@@ -242,6 +254,8 @@ void ClientCommand(edict_t* pEntity) {
 }
 
 void MapInit(edict_t* pEdictList, int edictCount, int maxClients) {
+	radioPaused = false;
+
 	g_enabled = string(STRING(gpGlobals->mapname)).find("cinema") == 0;
 	if (!g_enabled) {
 		RETURN_META(MRES_IGNORED);
