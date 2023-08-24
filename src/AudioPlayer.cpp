@@ -53,7 +53,7 @@ void AudioPlayer::play_samples() {
 		return;
 	}
 
-	if (nextPacketTime > g_engfuncs.pfnTime()) {
+	if (nextPacketTime > getEpochMillis()) {
 		return;
 	}
 
@@ -67,7 +67,7 @@ void AudioPlayer::play_samples() {
 
 	if (packets[0].isNewSound) {
 		packetNum = 0;
-		playbackStartTime = g_engfuncs.pfnTime();
+		playbackStartTime = getEpochMillis();
 	}
 
 	for (int i = 1; i <= gpGlobals->maxClients; i++) {
@@ -122,17 +122,17 @@ void AudioPlayer::play_samples() {
 	}
 
 	packetNum++;
-	nextPacketTime = playbackStartTime + packetNum * (g_packet_delay - 0.0001f); // slightly fast to prevent mic getting quiet/choppy
+	nextPacketTime = playbackStartTime + (uint64_t)((float)(packetNum * (g_packet_delay - 0.0001f)) * 1000ULL); // slightly fast to prevent mic getting quiet/choppy
 	//println("Play %d", packetNum);
 
-	if (nextPacketTime < g_engfuncs.pfnTime()) {
+	if (nextPacketTime < getEpochMillis()) {
 		play_samples();
 	}
 }
 
-float AudioPlayer::getPlaybackTime() {
+uint64_t AudioPlayer::getPlaybackTime() {
 	float speedup = g_packet_delay / (g_packet_delay - 0.0001f);
-	return (g_engfuncs.pfnTime() - playbackStartTime) * speedup;
+	return (getEpochMillis() - playbackStartTime) * speedup;
 }
 
 void AudioPlayer::destroy() {

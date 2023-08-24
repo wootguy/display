@@ -40,8 +40,8 @@ public:
 	volatile bool stopSignal = false;
 	uint32_t listeners = 0xffffffff; // 1 bit = player is listener
 	uint32_t reliableMode = 0; // 1 bit = player wants reliable packets
-	float playbackStartTime = 0;
-	float nextPacketTime = 0;
+	uint64_t playbackStartTime = 0;
+	uint64_t nextPacketTime = 0;
 	int packetNum = 0;
 	Mp3DecodeState* mp3state = NULL;
 
@@ -61,7 +61,7 @@ public:
 	void stop();
 
 	// progress in audio (slightly sped up)
-	float getPlaybackTime();
+	uint64_t getPlaybackTime();
 
 private:
 	// private vars only access from converter thread

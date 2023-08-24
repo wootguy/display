@@ -142,13 +142,13 @@ bool doCommand(edict_t* plr) {
 
 		if (commandCooldown(plr)) { return true; }
 
-		ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Set display mode to %d-bit %s\n", bits, rgb ? "color" : "greyscale"));
+		//ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Set display mode to %d-bit %s\n", bits, rgb ? "color" : "greyscale"));
 
 		g_video_player->setMode(bits, rgb, g_video_player->wantFps);
 	}
 	if (lowerArg == ".fps") {
 		string arg = toLowerCase(args.ArgV(1));
-		if (arg.size() != 2) {
+		if (arg.size() == 0) {
 			ClientPrint(plr, HUD_PRINTTALK, "Usage: .fps [1-30]\n");
 			return true;
 		}
@@ -159,6 +159,19 @@ bool doCommand(edict_t* plr) {
 
 		g_video_player->setMode(0, 0, fps);
 		g_video_player->restartVideo();
+	}
+	if (lowerArg == ".sync") {
+		string arg = toLowerCase(args.ArgV(1));
+		if (arg.size() == 0) {
+			ClientPrint(plr, HUD_PRINTTALK, "Usage: .sync [+/-1000]\n");
+			return true;
+		}
+		int sync = clamp(atoi(arg.substr(0).c_str()), -1000, 1000);
+
+		if (commandCooldown(plr)) { return true; }
+		ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Audio sync set to %dms\n", sync));
+
+		g_video_player->syncDelay = (float)sync * 0.001f;
 	}
 	if (lowerArg == ".replay") {
 		if (commandCooldown(plr)) { return true; }
