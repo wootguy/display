@@ -13,6 +13,15 @@
 
 using namespace std;
 
+// TODO:
+// - too many entities (AFK sprites, hats)
+// - progress bar
+// - popcorn
+// - reset to default settings on map start
+// - delete buffers on nmap change
+// - kill ffmpeg processes on map change(?)
+// - black instead of null background
+
 // Description of plugin
 plugin_info_t Plugin_info = {
 	META_INTERFACE_VERSION,	// ifvers
