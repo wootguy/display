@@ -9,15 +9,21 @@ def load_info_from_url(url):
 		
 		title = ydl_info['title']
 		length = ydl_info['duration'] if 'duration' in ydl_info else -1
-		formats = ydl_info['formats'] if 'formats' in ydl_info else ydl_info['entries'][0]['formats']
+		formats = [ydl_info]
+		if 'formats' in ydl_info:
+			formats = ydl_info['formats']
+		elif 'entries' in ydl_info:
+			formats = ydl_info['entries'][0]['formats']
 		
 		streams = [i for i in formats if i.get('acodec', 'none') != 'none' and i.get('vcodec', 'none') != 'none']
+		
+		#print(streams)
 		
 		best_stream = None
 		if len(streams):
 			best_fps = 1
 			for stream in streams:
-				if stream['fps'] >= best_fps:
+				if 'fps' in stream and stream['fps'] >= best_fps:
 					best_fps = stream['fps']
 			best_fps = min(best_fps, 30)
 		
@@ -27,7 +33,7 @@ def load_info_from_url(url):
 					continue
 				#print(json.dumps(stream, sort_keys=True, indent=4))
 				rez = stream['width']*stream['height']
-				if rez < lowest_rez and stream['fps'] >= best_fps:
+				if rez < lowest_rez and ('fps' not in stream or stream['fps'] >= best_fps):
 					lowest_rez = rez
 					best_stream = stream
 		elif len(formats):
@@ -44,8 +50,9 @@ def load_info_from_url(url):
 			best_stream['width'] = 160
 			best_stream['height'] = 90
 		
+		fps = best_stream['fps'] if 'fps' in best_stream else 30
 		print(json.dumps(best_stream, sort_keys=True, indent=4))
-		return {'title': title, 'length': length, 'url': best_stream['url'], 'width': best_stream['width'], 'height': best_stream['height'], 'fps': best_stream['fps']}
+		return {'title': title, 'length': length, 'url': best_stream['url'], 'width': best_stream['width'], 'height': best_stream['height'], 'fps': fps}
 
 try:
 	vid_info = load_info_from_url(sys.argv[1])
