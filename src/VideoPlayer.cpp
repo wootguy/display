@@ -102,7 +102,7 @@ void VideoPlayer::play(string url) {
 	url = replaceString(url, "`", "");
 		
 	if (videoQueue.size() >= MAX_QUEUE) {
-		ClientPrintAll(HUD_PRINTTALK, "[Video] The queue is full!");
+		ClientPrintAll(HUD_PRINTTALK, "[Video] The queue is full!\n");
 		return;
 	}
 
@@ -546,7 +546,7 @@ void VideoPlayer::readPythonOutput(int subpid) {
 				vid.python_output = m_python_output;
 				vid.keyavlues = keyvals;
 				videoQueue.push_back(vid);
-				ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Queued (%d/%d): %s", videoQueue.size(), MAX_QUEUE, keyvals["title"].c_str()));
+				ClientPrintAll(HUD_PRINTTALK, UTIL_VarArgs("[Video] Queued (%d/%d): %s\n", videoQueue.size(), MAX_QUEUE, keyvals["title"].c_str()));
 			}
 		}
 		else {
